@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #F8FAFC;
+    color: #0F172A;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Outfit', system-ui, sans-serif;
+}
+
+.font-mono, .font-num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@layer base {
+    :root {
+        --background: 210 40% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 173 80% 30%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 173 60% 92%;
+        --accent-foreground: 173 80% 20%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 173 80% 30%;
+        --radius: 0.75rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+    input, select, textarea {
+        font-size: 16px; /* prevent iOS zoom */
+    }
+}
+
+/* Custom utility classes */
+.card-elevated {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.04);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.875rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    transition: background-color 150ms, border-color 150ms, transform 100ms;
+    cursor: pointer;
+}
+.chip:hover { background: #F1F5F9; }
+.chip:active { transform: scale(0.97); }
+.chip-active {
+    background: #CCFBF1;
+    border-color: #0D9488;
+    color: #0F766E;
+}
+
+.status-collected { background: #DCFCE7; color: #166534; }
+.status-pending { background: #FFEDD5; color: #9A3412; }
+.status-void { background: #FEE2E2; color: #991B1B; text-decoration: line-through; }
+
+/* Bottom nav safe area */
+.pb-nav {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+    .pb-nav {
+        padding-bottom: 2rem;
+    }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] { display: contents !important; }
+}

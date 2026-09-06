@@ -1,0 +1,107 @@
+{
+  "theme": "Clean Light Theme (विशिष्ट स्वच्छ लाइट थीम)",
+  "app_type": "mobile_web_app (PWA-ready, mobile-first responsive)",
+  "emotional_archetype": "ARCHETYPE 1 & 4 (Organic Trust, Local Festival/Event Chanda Ledger, Precision & High-Legibility)",
+  "responsive": {
+    "breakpoint": "mobile-first (default <640px phone view with expanded support for sm, md, lg, xl)",
+    "layout": "Mobile sticky bottom navigation tab bar + top header with quick action trigger. On tablet/desktop (md+), side navigation or wide responsive bento cards.",
+    "typography": "Mobile-optimized text sizes: H1 clamp(1.75rem, 5vw, 2.25rem), H2 1.35rem, Body 1rem (16px to prevent iOS input zoom), Labels 0.875rem (14px). Heavy weight numerals for currency ₹ values.",
+    "overflow_guard": "w-full max-w-full overflow-x-hidden to prevent horizontal scrolling on small viewports.",
+    "tap_targets": "Minimum 48px x 48px interactive touch targets for all buttons, inputs, selects, and filter chips, with 12px+ padding for high non-technical accessibility."
+  },
+  "typography": {
+    "heading_font": "Outfit, system-ui, sans-serif (Bold, clear, authoritative yet warm)",
+    "body_font": "Plus Jakarta Sans, system-ui, sans-serif (Highly legible, crisp Indian English & Hindi support)",
+    "mono_font": "JetBrains Mono, monospace (For transaction IDs, amounts, dates, receipt numbers)",
+    "scale": {
+      "h1": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h2": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "h3": "text-lg sm:text-xl font-medium",
+      "h4": "text-base font-medium",
+      "body": "text-base leading-relaxed text-slate-800",
+      "small": "text-sm text-slate-600",
+      "currency_large": "text-3xl sm:text-4xl font-extrabold tracking-tight text-emerald-700 font-mono",
+      "currency_medium": "text-xl font-bold text-slate-900 font-mono"
+    }
+  },
+  "colors": {
+    "base_theme": "Clean Light Theme with vibrant warmth (Creamy Off-white background, High-contrast Charcoal text, Emerald Gold accent)",
+    "palette": {
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "surface_elevated": "#F1F5F9",
+      "border": "#E2E8F0",
+      "border_darker": "#CBD5E1",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "text_muted": "#64748B",
+      "primary": "#0D9488",
+      "primary_hover": "#0F766E",
+      "primary_light": "#CCFBF1",
+      "accent_gold": "#D97706",
+      "accent_gold_light": "#FEF3C7",
+      "collected_green": "#16A34A",
+      "collected_bg": "#DCFCE7",
+      "pending_orange": "#EA580C",
+      "pending_bg": "#FFEDD5",
+      "void_red": "#DC2626",
+      "void_bg": "#FEE2E2",
+      "cash_purple": "#7C3AED",
+      "cash_bg": "#F3E8FF",
+      "upi_blue": "#2563EB",
+      "upi_bg": "#DBEAFE",
+      "bank_teal": "#0891B2",
+      "bank_bg": "#CFFAFE"
+    }
+  },
+  "visual_enhancers": {
+    "cards": "Subtle 1px border (#E2E8F0) with soft layered ambient shadow (shadow-sm md:shadow-md), rounded-2xl corners, padding p-4 sm:p-6.",
+    "buttons": "Large tactile buttons (h-12 or h-14), rounded-xl, font-semibold, active scale feedback (active:scale-[0.98]), visible focus rings.",
+    "quick_amount_presets": "Chip buttons for popular Indian Chanda sums: ₹101, ₹251, ₹501, ₹1100, ₹2100, ₹5100 with 1-tap fill.",
+    "status_badges": "Pill-shaped rounded-full px-3 py-1 text-xs sm:text-sm font-semibold with distinct light background and strong text contrast.",
+    "empty_states": "Warm friendly illustration/icon states, encouraging Hindi/English subheadings, big clear CTA to 'Add First Chanda'."
+  },
+  "grids_and_layouts": {
+    "container": "w-full max-w-md sm:max-w-2xl lg:max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-28 md:pb-12",
+    "dashboard_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4",
+    "mobile_nav": "fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex justify-around items-center shadow-lg",
+    "form_layout": "space-y-5 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm"
+  },
+  "component_strategies": {
+    "shadcn_overrides": {
+      "button": "Ensure min-height 48px, rounded-xl, high contrast focus states.",
+      "input": "Height 48px, text-base (prevents iOS auto-zoom), border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100.",
+      "select": "Large select items with min 44px tap area, non-transparent popover background bg-white.",
+      "dialog_drawer": "Use Vaul Drawer / Shadcn Sheet on mobile for smooth bottom-sheet modals, sliding up naturally.",
+      "tabs": "Full width equal segment tabs with h-auto py-2.5 px-4 rounded-xl active tab in high contrast teal/dark."
+    },
+    "custom_features": {
+      "collector_field": "Dual Mode: Combines a quick-select Dropdown of saved collectors with an 'Add New Collector' free-text input field.",
+      "currency_input": "Automatic ₹ prefix, numeric keyboard default input mode, instant total calculation.",
+      "quick_status_toggle": "1-click toggle directly in Chanda List to switch status between Pending and Collected without entering edit mode.",
+      "export_modal": "Column Picker checkbox matrix (Name, Amount, Collector, Payment Mode, Status, Date, Receipt #) before exporting to PDF, Excel (XLSX/CSV).",
+      "backup_restore": "JSON file download backup + file upload restore with preview & confirmation step."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build a mobile-first, lightweight PWA-ready Chanda / Donation Collection Management Web App for single-user offline-capable management.",
+    "Include 5 key tabs in the Mobile Bottom Navigation Bar & Top Header: 1. Dashboard (डैशबोर्ड), 2. Quick Add (चंदा जोड़ें), 3. Chanda List (चंदा सूची), 4. Reports & Export (रिपोर्ट्स / एक्सपोर्ट), 5. Settings & Backup (सेटिंग्स / बैकअप).",
+    "Use ₹ (INR) currency formatting with Indian grouping (e.g. ₹1,50,000) across all summary metrics.",
+    "DASHBOARD REQUIREMENTS: Total Expected, Total Collected, Total Pending KPI metric cards with status indicator bars. Collector-wise summary breakdown chart/cards. Payment Mode (Cash, UPI, Bank Transfer, Other) breakdown chart/cards. Quick stats and recent 5 entries.",
+    "ADD CHANDA FORM: Donor Name, Amount (with ₹101, ₹251, ₹501, ₹1100, ₹2100, ₹5100 quick chips), Collector (dropdown list + freetext custom option), Payment Mode (Cash/UPI/Bank Transfer/Other), Status (Collected/Pending - default Collected), Date (date picker or today button). Auto-generates receipt ID.",
+    "CHANDA LIST: Search bar (searches name, collector, receipt ID), Filters (Status: All/Collected/Pending, Payment Mode, Collector, Date Range), Sort (Date desc/asc, Amount desc/asc), Quick Status Toggle button, Void Entry button (with confirmation modal), Edit Entry modal.",
+    "REPORTS & EXPORT: Column selector checkboxes (Name, Amount, Collector, Payment Mode, Status, Date, Notes/Receipt). Export triggers for PDF receipt list print layout, Excel (CSV/XLSX downloader), and Printable Ledger sheet.",
+    "SETTINGS & BACKUP: Manage Collectors list (Add/Remove default collectors), Backup data export (download JSON file with timestamp), Restore data import (upload JSON file with data validation & replacement/merge options), Reset data option with double confirmation.",
+    "MOBILE-FIRST COMPATIBILITY: Ensure all inputs are >=16px text size to prevent mobile iOS zoom. Navigation must stay sticky at bottom on mobile devices.",
+    "DATA PERSISTENCE: Use LocalStorage for instant persistence so data remains intact across page refreshes, offline usage, and PWA sessions. Pre-populate with 8-10 realistic demo entries (e.g. Ramesh Kumar ₹501, Anita Sharma ₹1100, etc.) so the app looks populated immediately on first load.",
+    "TESTING ATTRIBUTES: ALL interactive elements (buttons, inputs, filters, tabs, status toggles, export buttons) MUST include precise kebab-case data-testid attributes (e.g. data-testid='nav-dashboard-tab', data-testid='add-chanda-submit-btn', data-testid='chanda-search-input')."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Clean Light Theme is required: DO NOT use dark mode as default background. Keep crisp white surfaces with warm slate and emerald accents.",
+    "Do NOT center align the main application container globally.",
+    "Do NOT use universal CSS transitions like 'transition: all'. Explicitly state transition-colors, transition-transform, transition-opacity.",
+    "DO NOT use emojis as primary icons (e.g. no 🤖🧠💭). Use lucide-react or @heroicons/react standard icons.",
+    "Always provide data-testid on every interactive element.",
+    "Use Sonner for toast notifications (e.g., 'Chanda added successfully! ₹501 from Ramesh', 'Backup downloaded', 'Entry voided')."
+  ]
+}

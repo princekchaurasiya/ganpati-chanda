@@ -1,0 +1,26 @@
+{
+  "summary": "Smoke tested Chanda Manager MVP — backend /api endpoints and mobile-first frontend flows. Backend: seed idempotent, dashboard totals correct (voided excluded), CRUD/void/unvoid/status transitions (collected_at stamping/clearing), collectors, backup all working. Frontend: Dashboard KPI renders with ₹ INR (₹11,151), Add form submits and redirects to /list with success toast, void confirm modal opens+cancels, Reports preview shows 10 entries / ₹13,137 with column checkboxes, Settings lists 5 collectors and backup/restore buttons render, bottom nav navigates across all 5 tabs.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/seed idempotent (returns seeded:false when data exists)",
+    "GET /api/dashboard totals (expected 10904, collected 10152, pending 752, by_payment_mode + by_collector populated)",
+    "POST /api/chanda creates with collected_at auto-stamped for Collected",
+    "PUT /api/chanda/{id} — Collected stamps collected_at, Pending clears it",
+    "POST /api/chanda/{id}/void and /unvoid toggle voided flag",
+    "DELETE /api/chanda/{id} returns ok:true",
+    "GET/POST /api/collectors — 4 seeded collectors returned; dedupe on POST",
+    "GET /api/backup returns {version, chandas[], collectors[]}",
+    "Frontend Dashboard loads with dashboard-page testid and ₹ formatted total",
+    "Add flow: fills name/amount, uses add-new-collector-toggle, submits, redirects to /list, toast shown, entry visible in list",
+    "List search filters entries; void-btn opens void-confirm-modal; void-cancel-btn closes it",
+    "Reports page loads with filters + column checkboxes + preview count/total",
+    "Settings page loads with 5 collector rows and backup/restore controls",
+    "Bottom nav (dashboard/add/list/reports/settings) navigates correctly; FAB add visible"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Radix Select for collector in Add form was not clickable via role=option (native select fallback used add-new-collector-toggle path successfully). PDF/Excel/CSV export click was not exercised per instructions (trivial). Restore window.confirm flow not automated."
+}
