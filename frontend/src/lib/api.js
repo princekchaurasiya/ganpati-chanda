@@ -9,6 +9,7 @@ export const chandaApi = {
   list: () => client.get("/chanda").then((r) => r.data),
   create: (data) => client.post("/chanda", data).then((r) => r.data),
   update: (id, data) => client.put(`/chanda/${id}`, data).then((r) => r.data),
+  markReceived: (id) => client.post(`/chanda/${id}/receive`).then((r) => r.data),
   voidEntry: (id) => client.post(`/chanda/${id}/void`).then((r) => r.data),
   unvoidEntry: (id) => client.post(`/chanda/${id}/unvoid`).then((r) => r.data),
   remove: (id) => client.delete(`/chanda/${id}`).then((r) => r.data),
@@ -38,4 +39,31 @@ export const expenseApi = {
   voidEntry: (id) => client.post(`/expenses/${id}/void`).then((r) => r.data),
   unvoidEntry: (id) => client.post(`/expenses/${id}/unvoid`).then((r) => r.data),
   remove: (id) => client.delete(`/expenses/${id}`).then((r) => r.data),
+};
+
+export const transferApi = {
+  list: () => client.get("/transfers").then((r) => r.data),
+  create: (data) => client.post("/transfers", data).then((r) => r.data),
+  update: (id, data) => client.put(`/transfers/${id}`, data).then((r) => r.data),
+  voidEntry: (id) => client.post(`/transfers/${id}/void`).then((r) => r.data),
+  unvoidEntry: (id) => client.post(`/transfers/${id}/unvoid`).then((r) => r.data),
+  remove: (id) => client.delete(`/transfers/${id}`).then((r) => r.data),
+};
+
+export const memberApi = {
+  summary: () => client.get("/members/summary").then((r) => r.data),
+  detail: (name) => client.get(`/members/${encodeURIComponent(name)}`).then((r) => r.data),
+};
+
+export const reimbursementApi = {
+  list: () => client.get("/reimbursements").then((r) => r.data),
+  create: (data) => client.post("/reimbursements", data).then((r) => r.data),
+  update: (id, data) => client.put(`/reimbursements/${id}`, data).then((r) => r.data),
+  voidEntry: (id) => client.post(`/reimbursements/${id}/void`).then((r) => r.data),
+  unvoidEntry: (id) => client.post(`/reimbursements/${id}/unvoid`).then((r) => r.data),
+  remove: (id) => client.delete(`/reimbursements/${id}`).then((r) => r.data),
+};
+
+export const ledgerApi = {
+  get: () => client.get("/ledger").then((r) => r.data),
 };

@@ -22,12 +22,14 @@ Build a simple, lightweight PWA-ready web app for Chanda/Donation collection man
 - ✅ Add Chanda form with quick-amount chips (₹101/₹251/₹501/₹1100/₹2100/₹5100), preset collectors + free-text new collector, native date picker with Today button
 - ✅ Dashboard: KPI hero, Balance card (Chanda − Expenses), Pending & Expenses stat cards, payment-mode grid, collector-wise breakdown with progress bars, Recent 5 entries
 - ✅ Chanda List: search, filter by status/mode/collector/date-range, show-voided toggle, quick status toggle, edit, void with confirm modal
-- ✅ **Expenses Module (2026-02, iteration 3)**: full CRUD (`/api/expenses`), category chips (Materials/Food/Decoration/Rent/Utilities/Transport/Other), optional paid-by, payment-mode, date, void/unvoid; dedicated /expenses list + /expenses/add form; dashboard now returns `total_expenses`, `count_expenses`, `by_expense_category`, `balance`. Backup/restore v2 includes expenses. Seed adds 3 demo expenses.
-- ✅ **Add sheet**: FAB and header + button open a bottom-sheet that lets users pick Chanda or Expense in one tap.
-- ✅ Reports: filters + column-picker checkboxes + PDF/Excel/CSV export with summary header; PDF uses "Rs." prefix (jsPDF ₹ glyph fix); WhatsApp share button uses Web Share API with wa.me fallback.
-- ✅ Settings: manage collectors (inline edit + delete + rename cascade), JSON backup download, JSON restore (merge/replace mode)
-- ✅ Bottom-nav mobile navigation (Dashboard, Chanda, खर्चे, Reports, Settings) + floating +Add FAB, mobile-first responsive layout
-- ✅ Idempotent seed endpoint with 8 demo chanda entries + 4 default collectors + 3 demo expenses
+- ✅ Expenses Module: full CRUD (`/api/expenses`), category chips, optional paid-by, payment-mode, date, void/unvoid; dashboard `total_expenses`, `count_expenses`, `by_expense_category`, `balance`
+- ✅ Add sheet: FAB and header + button open a bottom-sheet with Chanda/Transfer/Reimburse/Expense choices
+- ✅ Reports: filters + column-picker checkboxes + PDF/Excel/CSV export with summary header; PDF uses "Rs." prefix; WhatsApp share button
+- ✅ Settings: manage collectors (inline edit + delete + rename cascade to chandas/expenses/transfers/reimbursements), JSON backup download, JSON restore
+- ✅ Bottom-nav mobile navigation (Dashboard, Chanda, खर्चे, Members, Settings) + floating +Add FAB
+- ✅ **Ledger + Settlement (2026-02, iteration 4)**: Members tab with per-member cards, Transfers (from_member → to_member) that never count as new Chanda, transaction Ledger view, Reimbursements that clear personal advances. Chanda now separates `amount` (promised) vs `received_amount` (actual received) — pending money is never counted as available cash.
+- ✅ **Personal Contribution + Reimbursement (2026-02, iteration 5)**: Expense form splits payment into Group Funds + Personal Contribution; splits must sum to Amount Paid; validation prevents group_funds > member's held cash. Reimbursements pay back personal contribution from another member's group cash. Dashboard shows Member Advances / Reimbursements section (personal, reimbursed, outstanding). Never double-counts money.
+- ✅ Acceptance scenario verified end-to-end (Monu ₹10k + Shrikant ₹2k → transfer ₹2k → expense ₹12k pays ₹65k bill → total Chanda stays ₹12k, cash held 0, bill balance ₹53k).
 - ✅ PWA-installable (manifest.json + theme color)
 
 ## Persona

@@ -10,6 +10,10 @@ import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Expenses from "@/pages/Expenses";
 import AddExpense from "@/pages/AddExpense";
+import Members from "@/pages/Members";
+import MemberDetail from "@/pages/MemberDetail";
+import AddTransfer from "@/pages/AddTransfer";
+import AddReimbursement from "@/pages/AddReimbursement";
 
 function App() {
   return (
@@ -22,6 +26,10 @@ function App() {
           <Route path="list" element={<ChandaList />} />
           <Route path="expenses" element={<Expenses />} />
           <Route path="expenses/add" element={<AddExpense />} />
+          <Route path="transfer/add" element={<AddTransfer />} />
+          <Route path="reimburse/add" element={<AddReimbursement />} />
+          <Route path="members" element={<Members />} />
+          <Route path="members/:name" element={<MemberDetail />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
         </Route>
