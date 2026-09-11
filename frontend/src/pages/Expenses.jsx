@@ -5,13 +5,18 @@ import { formatINR, formatDate } from "@/lib/format";
 import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORIES = ["All", "Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 
 const catColor = {
+  Mandap: { bg: "bg-indigo-50", text: "text-indigo-700" },
+  Murti: { bg: "bg-rose-50", text: "text-rose-700" },
+  Banner: { bg: "bg-yellow-50", text: "text-yellow-700" },
+  Decoration: { bg: "bg-pink-50", text: "text-pink-700" },
+  "Police & BMC": { bg: "bg-red-50", text: "text-red-700" },
+  Documents: { bg: "bg-slate-50", text: "text-slate-700" },
   Materials: { bg: "bg-blue-50", text: "text-blue-700" },
   Food: { bg: "bg-orange-50", text: "text-orange-700" },
-  Decoration: { bg: "bg-pink-50", text: "text-pink-700" },
   Rent: { bg: "bg-purple-50", text: "text-purple-700" },
   Utilities: { bg: "bg-cyan-50", text: "text-cyan-700" },
   Transport: { bg: "bg-amber-50", text: "text-amber-700" },
@@ -52,7 +57,8 @@ export default function Expenses() {
       });
   }, [entries, q, cat, mode, from, to, showVoided]);
 
-  const totalAmount = filtered.filter((e) => !e.voided).reduce((s, e) => s + e.amount, 0);
+  const totalAmount = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.amount_paid || 0), 0);
+  const totalBill = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.total_bill || 0), 0);
 
   const doVoid = async () => {
     if (!confirmVoid) return;
@@ -149,6 +155,9 @@ export default function Expenses() {
         </div>
         <div data-testid="exp-filtered-total">
           Total: <span className="font-num font-bold text-red-700">{formatINR(totalAmount)}</span>
+          {totalBill > totalAmount + 0.01 && (
+            <span className="ml-2 text-xs text-orange-700">Bill {formatINR(totalBill)}</span>
+          )}
         </div>
       </div>
 
@@ -174,12 +183,25 @@ export default function Expenses() {
                       {e.voided && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold status-void">VOID</span>}
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${c.bg} ${c.text}`}>{e.category}</span>
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {e.paid_by ? `${e.paid_by} · ` : ""}{e.payment_mode} · {formatDate(e.date)}
+                    <div className="text-xs text-slate-500 mt-0.5 truncate">
+                      {e.vendor ? <span className="text-slate-700 font-medium">{e.vendor} · </span> : null}
+                      Paid by <span className="font-medium text-slate-700">{e.paid_by}</span> · {e.payment_mode} · {formatDate(e.date)}
                     </div>
+                    {(e.total_bill || 0) > (e.amount_paid || 0) + 0.01 && (
+                      <div className="text-[11px] text-orange-700 mt-0.5">
+                        Bill Rs.{Math.round(e.total_bill)} · Paid Rs.{Math.round(e.amount_paid)} · Bakaya Rs.{Math.round(e.total_bill - e.amount_paid)}
+                      </div>
+                    )}
+                    {(e.personal_contribution || 0) > 0.01 && (
+                      <div className="text-[11px] text-amber-700 mt-0.5">Personal contribution Rs.{Math.round(e.personal_contribution)} (reimbursement due)</div>
+                    )}
+                    {e.note && <div className="text-[11px] text-slate-500 mt-0.5 italic truncate">"{e.note}"</div>}
                   </div>
-                  <div className="text-right">
-                    <div className="font-num font-bold text-lg text-red-700">-{formatINR(e.amount)}</div>
+                  <div className="text-right shrink-0">
+                    <div className="font-num font-bold text-lg text-red-700">-{formatINR(e.amount_paid || 0)}</div>
+                    {(e.total_bill || 0) !== (e.amount_paid || 0) && (
+                      <div className="text-[10px] text-slate-500 font-num">bill {formatINR(e.total_bill || 0)}</div>
+                    )}
                   </div>
                 </div>
                 {!e.voided && (

@@ -5,7 +5,7 @@ import { todayISO, formatINR } from "@/lib/format";
 import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, User } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORIES = ["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
 
 export default function AddExpense() {
