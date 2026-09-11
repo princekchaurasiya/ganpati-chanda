@@ -128,7 +128,7 @@ export default function AddChanda() {
         receipt_book_id: receiptBookId || null,
         receipt_no: receiptNo ? Number(receiptNo) : null,
         event: event || DEFAULT_EVENT,
-        donor_member: donorMember || null,
+        donor_member: donorMember || "",
       };
       if (editing) {
         await chandaApi.update(editing.id, payload);

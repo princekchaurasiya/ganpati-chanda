@@ -376,7 +376,15 @@ async def update_chanda(chanda_id: str, payload: ChandaUpdate):
     existing = await db.chandas.find_one({"id": chanda_id}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Entry not found")
-    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    raw = payload.model_dump(exclude_unset=True)
+    # For nullable text fields, an explicit empty string clears the value.
+    nullable_text = {"donor_member", "note", "mobile"}
+    update_data = {}
+    for k, v in raw.items():
+        if k in nullable_text:
+            update_data[k] = "" if v in (None, "") else v
+        elif v is not None:
+            update_data[k] = v
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     new_status = update_data.get("status", existing.get("status"))
     new_amount = update_data.get("amount", existing.get("amount"))
