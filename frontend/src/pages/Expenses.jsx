@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt } from "lucide-react";
+import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
@@ -34,6 +34,7 @@ export default function Expenses() {
   const [to, setTo] = useState("");
   const [showVoided, setShowVoided] = useState(false);
   const [confirmVoid, setConfirmVoid] = useState(null);
+  const [catDetail, setCatDetail] = useState(null); // category name string
 
   const load = async () => {
     setLoading(true);
@@ -59,6 +60,20 @@ export default function Expenses() {
 
   const totalAmount = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.amount_paid || 0), 0);
   const totalBill = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.total_bill || 0), 0);
+
+  // Group filtered active expenses by category
+  const byCategory = useMemo(() => {
+    const map = {};
+    filtered.filter((e) => !e.voided).forEach((e) => {
+      const k = e.category || "Other";
+      if (!map[k]) map[k] = { count: 0, total: 0, bill: 0, entries: [] };
+      map[k].count += 1;
+      map[k].total += e.amount_paid || 0;
+      map[k].bill += e.total_bill || 0;
+      map[k].entries.push(e);
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }, [filtered]);
 
   const doVoid = async () => {
     if (!confirmVoid) return;
@@ -161,6 +176,33 @@ export default function Expenses() {
         </div>
       </div>
 
+      {/* By Category rollup — tap a row to see full breakdown */}
+      {byCategory.length > 0 && (
+        <div className="card-elevated overflow-hidden" data-testid="exp-by-category">
+          <div className="px-3 py-2 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center justify-between">
+            <span>By Category</span>
+            <span className="normal-case tracking-normal text-slate-400 font-normal">Tap for details</span>
+          </div>
+          {byCategory.map(([catName, info]) => {
+            const cc = catColor[catName] || catColor.Other;
+            return (
+              <button
+                key={catName}
+                type="button"
+                onClick={() => setCatDetail(catName)}
+                data-testid={`exp-cat-row-${catName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}
+                className="w-full flex items-center gap-3 px-3 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-slate-50 active:bg-slate-100 text-left"
+              >
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${cc.bg} ${cc.text} shrink-0`}>{catName}</span>
+                <div className="text-xs text-slate-500 shrink-0">{info.count} {info.count === 1 ? "entry" : "entries"}</div>
+                <div className="flex-1 text-right font-num font-bold text-red-700">-{formatINR(info.total)}</div>
+                <ChevronRight size={14} className="text-slate-400 shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* List */}
       {loading ? (
         <div className="text-center text-slate-500 py-8">Loading…</div>
@@ -237,6 +279,80 @@ export default function Expenses() {
         </div>
       )}
 
+      {catDetail && (() => {
+        const info = byCategory.find(([k]) => k === catDetail)?.[1];
+        if (!info) return null;
+        const cc = catColor[catDetail] || catColor.Other;
+        const byPayer = {};
+        info.entries.forEach((e) => {
+          const key = e.paid_by || "-";
+          if (!byPayer[key]) byPayer[key] = { count: 0, total: 0 };
+          byPayer[key].count += 1;
+          byPayer[key].total += e.amount_paid || 0;
+        });
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setCatDetail(null)}>
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} data-testid="exp-cat-modal">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cc.bg} ${cc.text}`}>{catDetail}</span>
+                  <div className="text-xs text-slate-500">{info.count} {info.count === 1 ? "entry" : "entries"}</div>
+                </div>
+                <button onClick={() => setCatDetail(null)} data-testid="exp-cat-modal-close" className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="text-sm text-slate-500">Total Paid</div>
+                <div className="font-num font-bold text-xl text-red-700">-{formatINR(info.total)}</div>
+              </div>
+
+              <div className="overflow-y-auto flex-1">
+                <div className="px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Kisne kharcha kiya</div>
+                <div className="divide-y divide-slate-50">
+                  {Object.entries(byPayer).sort((a, b) => b[1].total - a[1].total).map(([payer, d]) => (
+                    <div key={payer} className="px-4 py-2 flex items-center gap-3" data-testid={`exp-cat-payer-${payer}`}>
+                      <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">{payer.charAt(0)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-900 truncate">{payer}</div>
+                        <div className="text-[11px] text-slate-500">{d.count} {d.count === 1 ? "entry" : "entries"}</div>
+                      </div>
+                      <div className="font-num font-bold text-red-700 shrink-0">-{formatINR(d.total)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-1">Entries</div>
+                <div className="divide-y divide-slate-50 pb-4">
+                  {info.entries.map((e) => (
+                    <div key={e.id} className="px-4 py-2.5 flex items-start gap-3" data-testid={`exp-cat-entry-${e.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-900 text-sm truncate">{e.description}</div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          {e.vendor ? <span>{e.vendor} · </span> : null}
+                          Paid by <span className="font-medium text-slate-700">{e.paid_by}</span> · {e.payment_mode} · {formatDate(e.date)}
+                        </div>
+                        {e.note && <div className="text-[11px] text-slate-400 italic truncate">"{e.note}"</div>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-num font-bold text-red-700">-{formatINR(e.amount_paid || 0)}</div>
+                        <button
+                          onClick={() => { setCatDetail(null); nav("/expenses/add", { state: { entry: e } }); }}
+                          data-testid={`exp-cat-edit-${e.id}`}
+                          className="text-[10px] text-teal-700 hover:underline mt-0.5 flex items-center gap-0.5"
+                        >
+                          <Pencil size={10} /> edit
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {confirmVoid && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setConfirmVoid(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()} data-testid="exp-void-modal">
@@ -245,8 +361,8 @@ export default function Expenses() {
             </h3>
             <p className="text-sm text-slate-600 mb-4">
               {confirmVoid.voided
-                ? `Restore ${confirmVoid.description} (${formatINR(confirmVoid.amount)}) back into totals?`
-                : `${confirmVoid.description} (${formatINR(confirmVoid.amount)}) will not be counted in totals but stays in the record.`}
+                ? `Restore ${confirmVoid.description} (${formatINR(confirmVoid.amount_paid || 0)}) back into totals?`
+                : `${confirmVoid.description} (${formatINR(confirmVoid.amount_paid || 0)}) will not be counted in totals but stays in the record.`}
             </p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmVoid(null)} data-testid="exp-void-cancel"
