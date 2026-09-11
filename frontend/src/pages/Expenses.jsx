@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
@@ -27,10 +27,11 @@ const catColor = {
 
 export default function Expenses() {
   const nav = useNavigate();
+  const location = useLocation();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState("All");
+  const [cat, setCat] = useState(location?.state?.initialCat || "All");
   const [mode, setMode] = useState("All");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -40,6 +41,17 @@ export default function Expenses() {
   const [payerFocus, setPayerFocus] = useState(null); // drill-down: payer within category
 
   useEffect(() => { setPayerFocus(null); }, [catDetail]);
+
+  // If arrived via `nav('/expenses', {state:{initialCat}})`, auto-open its category modal
+  useEffect(() => {
+    if (location?.state?.initialCat) {
+      setCat("All"); // keep filter chip on All so entries stay visible
+      setCatDetail(location.state.initialCat);
+      // clear state so back/forward doesn't re-trigger
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = async () => {
     setLoading(true);

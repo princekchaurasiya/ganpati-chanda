@@ -252,6 +252,7 @@ export default function Dashboard() {
         <StatModal
           kind={modalKind}
           onClose={() => setModalKind(null)}
+          switchKind={setModalKind}
           chandas={chandas}
           expenses={expenses}
           reimbs={reimbs}
@@ -294,7 +295,7 @@ function MiniStat({ label, value, sub, color, testid, onClick }) {
   return <div className={base} data-testid={testid}>{body}</div>;
 }
 
-function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }) {
+function StatModal({ kind, onClose, switchKind, chandas, expenses, reimbs, members, reload }) {
   const nav = useNavigate();
   const active = chandas.filter((c) => !c.voided);
   const activeExp = expenses.filter((e) => !e.voided);
@@ -422,6 +423,9 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
     const balance = receivedTotal - paidTotal;
     const pendingChanda = active.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
     const payable = billTotal - activeExp.reduce((s, e) => s + (e.amount_paid || 0), 0);
+    const heldMembers = members.filter((m) => Math.abs(m.current_held) > 0.01);
+    const posHeld = heldMembers.filter((m) => m.current_held > 0).reduce((s, m) => s + m.current_held, 0);
+    const negHeld = heldMembers.filter((m) => m.current_held < 0).reduce((s, m) => s + m.current_held, 0);
 
     const byMode = {};
     received.forEach((c) => {
@@ -439,7 +443,7 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
     });
 
     conf = {
-      title: "Balance Tally (Kaha se kaha)",
+      title: "Balance Tally (Kaha se Kaha)",
       body: () => (
         <div className="space-y-3 p-1">
           <div className={`rounded-xl p-4 ${balance >= 0 ? "bg-emerald-50 border border-emerald-100" : "bg-red-50 border border-red-100"}`} data-testid="tally-formula">
@@ -455,7 +459,7 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
             </div>
             {personalTotal > 0.01 && (
               <div className="text-[11px] text-amber-700 mt-1">
-                + Personal contributions Rs.{Math.round(personalTotal)} used (group owes members — reimbursement due)
+                Note: Rs.{Math.round(personalTotal)} personal cash bhi lagi (group owes members — separate reimbursement due, group balance me count nahi hoti)
               </div>
             )}
           </div>
@@ -467,7 +471,7 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
             </div>
             <div className="divide-y divide-emerald-100/70">
               {Object.entries(byMode).sort((a, b) => b[1].total - a[1].total).map(([m, d]) => (
-                <button key={m} type="button" onClick={() => setModalKind(`mode:${m}`)}
+                <button key={m} type="button" onClick={() => switchKind && switchKind(`mode:${m}`)}
                   data-testid={`tally-income-${m.replace(/\s/g,'-').toLowerCase()}`}
                   className="w-full px-3 py-2 flex items-center gap-2 hover:bg-emerald-100/50 text-left">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -479,10 +483,12 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
               ))}
             </div>
             {pendingChanda > 0.01 && (
-              <div className="px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-emerald-100 flex items-center justify-between">
-                <span>+ Pending (abhi tak nahi mila)</span>
+              <button type="button" onClick={() => switchKind && switchKind("chanda-pending")}
+                data-testid="tally-income-pending"
+                className="w-full px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-emerald-100 flex items-center justify-between hover:bg-amber-100">
+                <span>+ Pending (abhi tak nahi mila) — tap</span>
                 <span className="font-num font-bold">{formatINR(pendingChanda)}</span>
-              </div>
+              </button>
             )}
           </div>
 
@@ -493,20 +499,58 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
             </div>
             <div className="divide-y divide-red-100/70">
               {Object.entries(byCat).sort((a, b) => b[1].total - a[1].total).map(([c, d]) => (
-                <div key={c} className="w-full px-3 py-2 flex items-center gap-2" data-testid={`tally-cat-${c.replace(/\s/g,'-').toLowerCase()}`}>
+                <button key={c} type="button"
+                  onClick={() => { onClose(); nav("/expenses", { state: { initialCat: c } }); }}
+                  data-testid={`tally-cat-${c.replace(/\s/g,'-').toLowerCase()}`}
+                  className="w-full px-3 py-2 flex items-center gap-2 hover:bg-red-100/50 text-left">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                   <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c}</span>
                   <span className="text-[11px] text-slate-500">{d.count}</span>
                   <span className="font-num font-bold text-red-700">-{formatINR(d.total)}</span>
-                </div>
+                  <ChevronRight size={13} className="text-slate-400" />
+                </button>
               ))}
             </div>
             {payable > 0.01 && (
-              <div className="px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-red-100 flex items-center justify-between">
-                <span>+ Bakaya bills (abhi tak nahi diya)</span>
+              <button type="button"
+                onClick={() => { onClose(); nav("/expenses"); }}
+                data-testid="tally-payable"
+                className="w-full px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-red-100 flex items-center justify-between hover:bg-amber-100">
+                <span>+ Bakaya bills (abhi tak nahi diya) — tap</span>
                 <span className="font-num font-bold">{formatINR(payable)}</span>
-              </div>
+              </button>
             )}
+          </div>
+
+          <div className="rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
+            <div className="px-3 py-2 border-b border-slate-200">
+              <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Ye ₹{Math.round(balance)} kis-kis ke paas hai?</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Balance = jitna paisa members ke paas physically hai (+ve me hai) minus jitna group unhe wapas dena hai (-ve me hai)</div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {heldMembers.sort((a, b) => b.current_held - a.current_held).map((m) => (
+                <button key={m.name} type="button"
+                  onClick={() => switchKind && switchKind(`member:${m.name}`)}
+                  data-testid={`tally-held-${m.name}`}
+                  className="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-100 text-left">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${m.current_held < 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                    {m.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">{m.name}</div>
+                    {m.current_held < 0 && <div className="text-[10px] text-red-600">group ko wapas dena hai</div>}
+                  </div>
+                  <span className={`font-num font-bold ${m.current_held < 0 ? "text-red-700" : "text-emerald-700"}`}>
+                    {m.current_held >= 0 ? "+" : ""}{formatINR(m.current_held)}
+                  </span>
+                  <ChevronRight size={13} className="text-slate-400" />
+                </button>
+              ))}
+            </div>
+            <div className="px-3 py-2 bg-white border-t border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-slate-700 font-semibold">Net (Positive − Negative)</span>
+              <span className="font-num font-extrabold text-teal-800">+{formatINR(posHeld)} {negHeld < -0.01 ? `− ${formatINR(-negHeld)}` : ""} = {formatINR(posHeld + negHeld)}</span>
+            </div>
           </div>
 
           <div className={`rounded-xl p-3 flex items-center justify-between ${balance >= 0 ? "bg-teal-600" : "bg-red-600"} text-white`}>

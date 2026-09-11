@@ -1,0 +1,29 @@
+{
+  "summary": "Attempted to verify the claimed Balance Tally modal fix. THE FIX HAS NOT BEEN APPLIED. Clicking UPI/Cash/Pending rows in the Balance Tally modal still throws 'setModalKind is not defined' runtime error. The 'Ye ₹X kis-kis ke paas hai?' member-held section is completely absent from the modal. No `switchKind` prop exists anywhere in the frontend codebase.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "StatModal (Balance Tally)", "issue": "Clicking tally-income-upi triggers 'ReferenceError: setModalKind is not defined' - fix was NOT applied. Same issue applies to tally-income-cash and tally-income-pending. Full-screen red React error overlay covers the app.", "selector": "[data-testid='tally-income-upi']", "priority": "CRITICAL"},
+      {"component": "StatModal (Balance Tally)", "issue": "Member-held section 'Ye ₹4,839 kis-kis ke paas hai?' is missing entirely. No tally-held-prince, tally-held-Ramakant amit brijesh, tally-held-Mogli, tally-held-Monu rows are rendered. Modal ends with expenses breakdown only.", "selector": "[data-testid='tally-held-*']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Apply the claimed fix: add `switchKind` prop to StatModal signature and pass it from Dashboard (`switchKind={setModalKind}`). Update all balance-tally inner row onClick handlers to call `switchKind(...)` instead of undefined `setModalKind`.",
+    "Add the new 'Ye ₹X kis-kis ke paas hai?' section inside the balance-tally case of StatModal with tally-held-{name} rows for members with non-zero held cash (positive AND negative), including Monu -₹5,472 with red badge + 'group ko wapas dena hai' subtitle and a summary line '+₹10,311 − ₹5,472 = ₹4,839'.",
+    "Verify no code changes were lost — `grep -rn 'switchKind\\|tally-held\\|kis-kis' /app/frontend/src/` returns zero matches, confirming nothing was committed."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.jsx line 297 StatModal signature has no `switchKind` prop. Line 253 invocation does not pass it. The fix described in the review request does not exist in the codebase.",
+    "Regression regression confirmed working: dashboard-balance-card shows 'Received ₹77,114 − Group Paid ₹72,275 · tap to tally' and tally-balance shows ₹4,839 correctly. Formula box correct."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "20% (regression items pass; new fix items all fail)"},
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The fix described in the task description was NOT applied to the repo. Main agent must actually implement `switchKind` prop drilling from Dashboard→StatModal and add the member-held section before retesting. Balance card, tally-balance, and Formula box regression already verified working; only inter-modal navigation and new member-held section need retesting after fix.",
+  "rca of the issue": "Root cause: In /app/frontend/src/pages/Dashboard.jsx, StatModal (line ~297) is defined as a separate component outside the Dashboard component. The Balance Tally inner rows call `setModalKind(...)` which is only in scope inside Dashboard, not inside StatModal. The claimed fix (pass `switchKind` prop) was never committed — grep for `switchKind` in /app/frontend/src returns nothing. Reproduction: open `/`, click dashboard-balance-card, click tally-income-upi → red 'setModalKind is not defined' overlay. Mitigation: (1) Add `switchKind` to StatModal props signature. (2) In Dashboard's StatModal invocation add `switchKind={setModalKind}`. (3) Replace all `setModalKind(...)` calls inside the balance-tally case with `switchKind(...)`."
+}
