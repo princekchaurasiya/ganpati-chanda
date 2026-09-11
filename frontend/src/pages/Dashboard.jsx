@@ -138,9 +138,9 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.name} className="border-b border-slate-50 last:border-0" data-testid={`member-row-${m.name}`}>
+                  <tr key={m.name} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer active:bg-slate-100" data-testid={`member-row-${m.name}`} onClick={() => setModalKind(`member:${m.name}`)}>
                     <td className="py-2 pr-2">
-                      <Link to={`/members/${encodeURIComponent(m.name)}`} className="font-medium text-slate-900 hover:text-teal-700">{m.name}</Link>
+                      <span className="font-medium text-slate-900">{m.name}</span>
                     </td>
                     <td className="py-2 px-2 text-right font-num text-slate-900">{formatINR(m.total_received)}</td>
                     <td className="py-2 px-2 text-right font-num text-slate-600">
@@ -187,12 +187,17 @@ export default function Dashboard() {
             const val = ch.by_payment_mode?.[m] || 0;
             const c = modeColors[m];
             return (
-              <div key={m} className={`${c.bg} rounded-xl px-3 py-2.5 flex flex-col`} data-testid={`mode-tile-${m.replace(/\s/g, '-').toLowerCase()}`}>
-                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                  <span className={`w-2 h-2 rounded-full ${c.dot}`} /> {m}
+              <button type="button" key={m} onClick={() => setModalKind(`mode:${m}`)}
+                className={`${c.bg} rounded-xl px-3 py-2.5 flex flex-col text-left hover:brightness-95 active:scale-[0.98] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400`}
+                data-testid={`mode-tile-${m.replace(/\s/g, '-').toLowerCase()}`}>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <span className={`w-2 h-2 rounded-full ${c.dot}`} /> {m}
+                  </div>
+                  <ChevronRight size={12} className="text-slate-400 shrink-0" />
                 </div>
                 <div className={`text-lg font-bold font-num ${c.text}`}>{formatINR(val)}</div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -289,11 +294,12 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
   const active = chandas.filter((c) => !c.voided);
   const activeExp = expenses.filter((e) => !e.voided);
   const activeReimb = reimbs.filter((r) => !r.voided);
+  const goEditChanda = (e) => { onClose(); nav("/add", { state: { entry: e } }); };
 
-  const conf = {
-    "chanda-all": { title: "All Chanda", body: () => <ChandaRows entries={active} onEdit={(e) => { onClose(); nav("/add", { state: { entry: e } }); }} reload={reload} />, deepLink: "/list" },
-    "chanda-collected": { title: "Received Chanda", body: () => <ChandaRows entries={active.filter((c) => c.status === "Collected")} onEdit={(e) => { onClose(); nav("/add", { state: { entry: e } }); }} reload={reload} />, deepLink: "/list?status=Collected" },
-    "chanda-pending": { title: "Pending Chanda", body: () => <ChandaRows entries={active.filter((c) => c.status === "Pending")} onEdit={(e) => { onClose(); nav("/add", { state: { entry: e } }); }} reload={reload} showReceive />, deepLink: "/list?status=Pending" },
+  let conf = {
+    "chanda-all": { title: "All Chanda", body: () => <ChandaRows entries={active} onEdit={goEditChanda} reload={reload} />, deepLink: "/list" },
+    "chanda-collected": { title: "Received Chanda", body: () => <ChandaRows entries={active.filter((c) => c.status === "Collected")} onEdit={goEditChanda} reload={reload} />, deepLink: "/list?status=Collected" },
+    "chanda-pending": { title: "Pending Chanda", body: () => <ChandaRows entries={active.filter((c) => c.status === "Pending")} onEdit={goEditChanda} reload={reload} showReceive />, deepLink: "/list?status=Pending" },
     "expenses-all": { title: "All Expenses", body: () => <ExpenseRows entries={activeExp} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
     "expenses-payable": { title: "Payable Bills", body: () => <ExpenseRows entries={activeExp.filter((e) => (e.total_bill - e.amount_paid) > 0.01)} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
     "members-cash": { title: "Cash Held by Members", body: () => <MemberRows members={members.filter((m) => m.current_held > 0.01)} onOpen={(m) => { onClose(); nav(`/members/${encodeURIComponent(m.name)}`); }} field="current_held" />, deepLink: "/members" },
@@ -301,6 +307,70 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
     "advances-reimbursed": { title: "Reimbursements Paid", body: () => <ReimbRows entries={activeReimb} />, deepLink: "/members" },
     "advances-outstanding": { title: "Reimbursement Outstanding", body: () => <MemberRows members={members.filter((m) => m.reimbursement_due > 0.01)} onOpen={(m) => { onClose(); nav("/reimburse/add", { state: { to_member: m.name, amount: m.reimbursement_due } }); }} field="reimbursement_due" cta="Reimburse" />, deepLink: "/reimburse/add" },
   }[kind];
+
+  if (!conf && kind && kind.startsWith("mode:")) {
+    const mode = kind.slice(5);
+    const filtered = active.filter((c) => c.payment_mode === mode && c.status === "Collected");
+    const total = filtered.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
+    conf = {
+      title: `${mode} Received`,
+      body: () => (
+        <div>
+          <div className="px-3 pb-2 pt-1 flex items-center justify-between text-xs">
+            <span className="text-slate-500">{filtered.length} entr{filtered.length === 1 ? "y" : "ies"}</span>
+            <span className="font-num font-bold text-slate-900">{formatINR(total)}</span>
+          </div>
+          <ChandaRows entries={filtered} onEdit={goEditChanda} reload={reload} />
+        </div>
+      ),
+      deepLink: `/list?mode=${encodeURIComponent(mode)}&status=Collected`,
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("member:")) {
+    const name = kind.slice(7);
+    const mem = members.find((m) => m.name === name);
+    const mine = active.filter((c) => c.collector === name);
+    const collected = mine.filter((c) => c.status === "Collected");
+    const pending = mine.filter((c) => c.status === "Pending");
+    const collectedTotal = collected.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
+    const pendingTotal = pending.reduce((s, c) => s + (c.amount || 0), 0);
+    conf = {
+      title: `${name} — Details`,
+      body: () => (
+        <div>
+          {mem && (
+            <div className="mx-2 mb-2 rounded-xl bg-slate-50 p-3 grid grid-cols-2 gap-2 text-xs" data-testid={`member-modal-summary-${name}`}>
+              <SumCell label="Collected" value={formatINR(mem.total_received)} tone="emerald" />
+              <SumCell label="Cash Held" value={formatINR(mem.current_held)} tone={mem.current_held < -0.01 ? "red" : mem.current_held > 0.01 ? "teal" : "slate"} />
+              <SumCell label="Paid to Expenses" value={formatINR(mem.paid_to_expenses)} tone="red" />
+              <SumCell label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 ? "—" : ""}`} tone="slate" />
+              {(mem.personal_contribution > 0.01 || mem.reimbursement_due > 0.01) && (
+                <>
+                  <SumCell label="Personal Contrib" value={formatINR(mem.personal_contribution)} tone="amber" />
+                  <SumCell label="Reimb Due" value={formatINR(mem.reimbursement_due)} tone={mem.reimbursement_due > 0.01 ? "red" : "slate"} />
+                </>
+              )}
+            </div>
+          )}
+          <div className="px-3 pb-1 pt-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+            Collected · {formatINR(collectedTotal)}
+          </div>
+          <ChandaRows entries={collected} onEdit={goEditChanda} reload={reload} />
+          {pending.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                Pending · {formatINR(pendingTotal)}
+              </div>
+              <ChandaRows entries={pending} onEdit={goEditChanda} reload={reload} showReceive />
+            </>
+          )}
+          {mine.length === 0 && <div className="p-6 text-center text-slate-500 text-sm">No chanda collected by {name} yet.</div>}
+        </div>
+      ),
+      deepLink: `/members/${encodeURIComponent(name)}`,
+    };
+  }
 
   if (!conf) return null;
 
@@ -402,6 +472,23 @@ function ExpenseRows({ entries, onEdit }) {
     </div>
   );
 }
+function SumCell({ label, value, tone }) {
+  const toneMap = {
+    emerald: "text-emerald-700",
+    red: "text-red-700",
+    teal: "text-teal-700",
+    amber: "text-amber-700",
+    slate: "text-slate-900",
+  };
+  return (
+    <div className="rounded-lg bg-white px-2.5 py-1.5 border border-slate-100">
+      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">{label}</div>
+      <div className={`text-sm font-bold font-num ${toneMap[tone] || toneMap.slate}`}>{value}</div>
+    </div>
+  );
+}
+
+
 
 function MemberRows({ members, onOpen, field, cta }) {
   if (members.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">Nothing here.</div>;
