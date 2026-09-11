@@ -30,6 +30,10 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NavLink to="/reports" data-testid="header-reports-btn-mobile"
+              className="md:hidden inline-flex items-center gap-1 px-3 h-10 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 text-sm">
+              <FileDown size={16} /> Export
+            </NavLink>
             <NavLink to="/reports" data-testid="header-reports-btn"
               className="hidden md:inline-flex items-center gap-1.5 px-3 h-10 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50">
               <FileDown size={16} /> Reports
