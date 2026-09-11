@@ -209,20 +209,31 @@ export default function Dashboard() {
           <div className="text-sm text-slate-500">No entries yet.</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {recent.map((r) => (
-              <div key={r.id} className="py-2.5 flex items-center justify-between" data-testid={`recent-row-${r.id}`}>
-                <div>
-                  <div className="font-medium text-slate-900">{r.name}</div>
-                  <div className="text-xs text-slate-500">{r.collector} · {r.payment_mode} · {formatDate(r.date)}</div>
+            {recent.map((r) => {
+              const rc = shortReceipt(r);
+              return (
+                <div key={r.id} className="py-2.5 flex items-center gap-2" data-testid={`recent-row-${r.id}`}>
+                  {rc && (
+                    <div className="shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700" data-testid={`recent-receipt-${r.id}`} title={`${r.receipt_book_name || ""} · #${r.receipt_no}`}>
+                      {rc}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-slate-900 truncate">{r.name}</div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {r.receipt_book_name ? <span className="text-teal-700 font-medium">{r.receipt_book_name} #{r.receipt_no} · </span> : null}
+                      {r.collector} · {r.payment_mode} · {formatDate(r.date)}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-num font-bold text-slate-900">{formatINR(r.received_amount || r.amount)}</div>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${r.status === "Collected" ? "status-collected" : "status-pending"}`}>
+                      {r.status}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-num font-bold text-slate-900">{formatINR(r.received_amount || r.amount)}</div>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${r.status === "Collected" ? "status-collected" : "status-pending"}`}>
-                    {r.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -331,10 +342,13 @@ function ChandaRows({ entries, onEdit, reload, showReceive }) {
         const r = shortReceipt(e);
         return (
           <div key={e.id} className="px-3 py-2 flex items-center gap-2" data-testid={`modal-chanda-${e.id}`}>
-            {r && <div className="shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">{r}</div>}
+            {r && <div className="shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700" data-testid={`modal-receipt-${e.id}`} title={`${e.receipt_book_name || ""} · #${e.receipt_no}`}>{r}</div>}
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-slate-900 truncate">{e.name}</div>
-              <div className="text-[10px] text-slate-500 truncate">{e.collector} · {e.payment_mode} · {formatDate(e.date)}</div>
+              <div className="text-[10px] text-slate-500 truncate">
+                {e.receipt_book_name ? <span className="text-teal-700 font-medium">{e.receipt_book_name} #{e.receipt_no} · </span> : null}
+                {e.collector} · {e.payment_mode} · {formatDate(e.date)}
+              </div>
             </div>
             <div className="text-right shrink-0">
               <div className="font-num font-bold text-sm text-slate-900">{formatINR(e.status === "Collected" ? (e.received_amount || e.amount) : e.amount)}</div>

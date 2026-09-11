@@ -31,6 +31,7 @@ Build a simple, lightweight PWA-ready web app for Chanda/Donation collection man
 - ✅ **Personal Contribution + Reimbursement (2026-02, iteration 5)**: Expense form splits payment into Group Funds + Personal Contribution; splits must sum to Amount Paid; validation prevents group_funds > member's held cash. Reimbursements pay back personal contribution from another member's group cash. Dashboard shows Member Advances / Reimbursements section (personal, reimbursed, outstanding). Never double-counts money.
 - ✅ Acceptance scenario verified end-to-end (Monu ₹10k + Shrikant ₹2k → transfer ₹2k → expense ₹12k pays ₹65k bill → total Chanda stays ₹12k, cash held 0, bill balance ₹53k).
 - ✅ PWA-installable (manifest.json + theme color)
+- ✅ **Receipt Book + Number visible in Dashboard (2026-02, agentic edit)**: Recent Chanda list on Dashboard main body and Chanda rows inside every StatModal now show the receipt badge (e.g. `B0/051`) + full `Book 2 #51` label alongside collector · mode · date for instant traceability.
 
 ## Persona
 Non-technical community/mandir/mohalla volunteer who collects donations for local events. Wants to add entries in seconds on mobile, see running totals, share PDF report with the committee.
