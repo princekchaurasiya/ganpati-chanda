@@ -1,23 +1,48 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { memberApi } from "@/lib/api";
+import { memberApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil } from "lucide-react";
+import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift } from "lucide-react";
+import { colorForEvent } from "@/lib/events";
 
 export default function MemberDetail() {
   const { name } = useParams();
   const nav = useNavigate();
   const [data, setData] = useState(null);
+  const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    memberApi.detail(name).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+    Promise.all([
+      memberApi.detail(name).catch(() => null),
+      chandaApi.list().catch(() => []),
+    ]).then(([detail, allChandas]) => {
+      setData(detail);
+      const decoded = decodeURIComponent(name).toLowerCase().trim();
+      setDonations((allChandas || []).filter((c) => (c.name || "").toLowerCase().trim() === decoded));
+    }).finally(() => setLoading(false));
   }, [name]);
 
   if (loading) return <div className="pt-10 text-center text-slate-500">Loading…</div>;
-  if (!data) return <div className="pt-10 text-center text-slate-500">Member not found</div>;
 
-  const s = data.summary;
+  // Neither collector activity nor donor activity
+  if (!data && donations.length === 0) {
+    return (
+      <div className="space-y-4 pb-24" data-testid="member-detail-page">
+        <div className="flex items-center gap-2">
+          <button onClick={() => nav(-1)} className="p-2 rounded-lg hover:bg-slate-100" data-testid="member-back-btn">
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-xl font-bold text-slate-900 truncate" style={{ fontFamily: "Outfit" }}>{name}</h1>
+        </div>
+        <div className="card-elevated p-6 text-center text-slate-500">Koi transaction nahi mila.</div>
+      </div>
+    );
+  }
+
+  const s = data ? data.summary : null;
+  const isPureDonor = !s || (s.count_collections === 0 && s.transferred_out === 0 && s.transferred_in === 0 && s.paid_to_expenses === 0 && s.reimbursement_paid_out === 0 && s.reimbursement_received === 0);
+  const donationTotal = donations.reduce((sum, d) => sum + (d.received_amount || d.amount || 0), 0);
 
   return (
     <div className="space-y-4 pb-24" data-testid="member-detail-page">
@@ -32,7 +57,59 @@ export default function MemberDetail() {
         <Pencil size={13} className="shrink-0" /> Galat entry? Kisi bhi row ke pencil icon pe tap karke saare fields (amount, mode, date, etc.) edit karo.
       </div>
 
+      {/* Donations GIVEN by this person (donor role) */}
+      {donations.length > 0 && (
+        <section className="card-elevated p-4 bg-amber-50/40 border border-amber-100" data-testid="member-donations-given-section">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Gift size={16} className="text-amber-700" />
+              <h2 className="font-semibold text-slate-900">Donations Given ({donations.length})</h2>
+            </div>
+            <div className="font-num font-bold text-amber-700">{formatINR(donationTotal)}</div>
+          </div>
+          <div className="text-[11px] text-amber-800 mb-2">
+            {name} ne khud diye — ye paisa collector ke naam par count hota hai.
+          </div>
+          <div className="divide-y divide-amber-100/70">
+            {donations.map((c) => (
+              <div key={c.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-donation-given-${c.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate flex items-center gap-1 ${c.voided ? "line-through" : ""}`}>
+                    <span className="truncate">to {c.collector}</span>
+                    {c.event && (() => { const cc = colorForEvent(c.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`member-donation-given-event-${c.id}`}>{c.event}</span>; })()}
+                  </div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {c.receipt_book_name ? <span className="text-teal-700 font-medium">{c.receipt_book_name} #{c.receipt_no} · </span> : null}
+                    {formatDate(c.date)} · {c.payment_mode} · {c.status}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-num font-bold text-amber-800">{formatINR(c.received_amount || c.amount)}</div>
+                  {c.status === "Pending" && <div className="text-[10px] text-orange-600">promised {formatINR(c.amount)}</div>}
+                </div>
+                {!c.voided && (
+                  <button
+                    onClick={() => nav("/add", { state: { entry: c } })}
+                    data-testid={`edit-donation-given-${c.id}`}
+                    title="Edit donation"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-amber-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {isPureDonor && (
+            <div className="mt-2 text-[11px] text-slate-500 italic">
+              Note: {name} sirf donor hai — koi chanda collect nahi kiya, isliye niche member stats sab zero hain.
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Current Held card */}
+      {s && !isPureDonor && (
       <div className={`card-elevated p-5 ${s.current_held < -0.01 ? "bg-red-50" : s.current_held < 0.01 ? "bg-slate-50" : "bg-emerald-50"}`} data-testid="member-held-card">
         <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Currently Held</div>
         <div className={`mt-1 text-4xl font-extrabold font-num tracking-tight ${s.current_held < -0.01 ? "text-red-700" : s.current_held < 0.01 ? "text-slate-500" : "text-emerald-700"}`} data-testid="member-current-held">
@@ -45,8 +122,10 @@ export default function MemberDetail() {
           {s.paid_to_expenses > 0 && <> −{formatINR(s.paid_to_expenses)} paid</>}
         </div>
       </div>
+      )}
 
       {/* Summary grid */}
+      {s && !isPureDonor && (
       <div className="grid grid-cols-2 gap-3">
         <MiniCard label="Total Collected" value={formatINR(s.total_received)} sub={`${s.count_collections} entries`} color="emerald" />
         <MiniCard label="Total Promised" value={formatINR(s.total_promised)} sub={s.total_pending > 0 ? `${formatINR(s.total_pending)} pending` : "All received"} color="teal" />
@@ -57,8 +136,9 @@ export default function MemberDetail() {
         <MiniCard label="Reimbursement Received" value={formatINR(s.reimbursement_received || 0)} color="emerald" />
         <MiniCard label="Current Group Held" value={formatINR(s.current_held)} color={s.current_held < 0 ? "red" : "emerald"} />
       </div>
+      )}
 
-      {s.reimbursement_due > 0.01 && (
+      {s && s.reimbursement_due > 0.01 && (
         <div className="card-elevated p-4 bg-amber-50 border-amber-200 flex items-center justify-between" data-testid="reimb-due-banner">
           <div>
             <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Reimbursement Due</div>
@@ -75,7 +155,7 @@ export default function MemberDetail() {
       )}
 
       {/* Chanda collections */}
-      {data.chandas.length > 0 && (
+      {data && data.chandas.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-chandas-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-emerald-700" />
@@ -85,7 +165,10 @@ export default function MemberDetail() {
             {data.chandas.map((c) => (
               <div key={c.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-chanda-row-${c.id}`}>
                 <div className="min-w-0 flex-1">
-                  <div className={`font-medium text-slate-900 truncate ${c.voided ? "line-through" : ""}`}>{c.name}</div>
+                  <div className={`font-medium text-slate-900 truncate flex items-center gap-1 ${c.voided ? "line-through" : ""}`}>
+                    <span className="truncate">{c.name}</span>
+                    {c.event && (() => { const cc = colorForEvent(c.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`member-chanda-event-${c.id}`}>{c.event}</span>; })()}
+                  </div>
                   <div className="text-xs text-slate-500 truncate">
                     {c.receipt_book_name ? <span className="text-teal-700 font-medium">{c.receipt_book_name} #{c.receipt_no} · </span> : null}
                     {formatDate(c.date)} · {c.payment_mode} · {c.status}
@@ -112,7 +195,7 @@ export default function MemberDetail() {
       )}
 
       {/* Transfers out */}
-      {data.transfers_out.length > 0 && (
+      {data && data.transfers_out.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-transfers-out-section">
           <div className="flex items-center gap-2 mb-2">
             <ArrowRightLeft size={16} className="text-orange-700" />
@@ -143,7 +226,7 @@ export default function MemberDetail() {
       )}
 
       {/* Transfers in */}
-      {data.transfers_in.length > 0 && (
+      {data && data.transfers_in.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-transfers-in-section">
           <div className="flex items-center gap-2 mb-2">
             <ArrowRightLeft size={16} className="text-blue-700" />
@@ -174,7 +257,7 @@ export default function MemberDetail() {
       )}
 
       {/* Expenses paid */}
-      {data.expenses.length > 0 && (
+      {data && data.expenses.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-expenses-section">
           <div className="flex items-center gap-2 mb-2">
             <Receipt size={16} className="text-red-700" />
@@ -184,7 +267,10 @@ export default function MemberDetail() {
             {data.expenses.map((e) => (
               <div key={e.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-exp-row-${e.id}`}>
                 <div className="min-w-0 flex-1">
-                  <div className={`font-medium text-slate-900 truncate ${e.voided ? "line-through" : ""}`}>{e.description}</div>
+                  <div className={`font-medium text-slate-900 truncate flex items-center gap-1 ${e.voided ? "line-through" : ""}`}>
+                    <span className="truncate">{e.description}</span>
+                    {e.event && (() => { const cc = colorForEvent(e.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`member-exp-event-${e.id}`}>{e.event}</span>; })()}
+                  </div>
                   <div className="text-xs text-slate-500 truncate">{formatDate(e.date)}{e.vendor ? ` · ${e.vendor}` : ""}</div>
                 </div>
                 <div className="text-right shrink-0">
@@ -207,7 +293,7 @@ export default function MemberDetail() {
         </section>
       )}
       {/* Reimbursements received */}
-      {data.reimbursements_in && data.reimbursements_in.length > 0 && (
+      {data && data.reimbursements_in && data.reimbursements_in.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-reimb-in-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-emerald-700" />
@@ -238,7 +324,7 @@ export default function MemberDetail() {
       )}
 
       {/* Reimbursements paid out */}
-      {data.reimbursements_out && data.reimbursements_out.length > 0 && (
+      {data && data.reimbursements_out && data.reimbursements_out.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-reimb-out-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-orange-700" />

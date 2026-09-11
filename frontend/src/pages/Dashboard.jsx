@@ -278,7 +278,10 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-slate-900 truncate">{r.name}</div>
+                    <div className="font-medium text-slate-900 truncate flex items-center gap-1">
+                      <span className="truncate">{r.name}</span>
+                      {r.event && (() => { const cc = colorForEvent(r.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`recent-event-${r.id}`}>{r.event}</span>; })()}
+                    </div>
                     <div className="text-xs text-slate-500 truncate">
                       {r.receipt_book_name ? <span className="text-teal-700 font-medium">{r.receipt_book_name} #{r.receipt_no} · </span> : null}
                       {r.collector} · {r.payment_mode} · {formatDate(r.date)}
@@ -749,7 +752,10 @@ function ChandaRows({ entries, onEdit, reload, showReceive }) {
           <div key={e.id} className="px-3 py-2 flex items-center gap-2" data-testid={`modal-chanda-${e.id}`}>
             {r && <div className="shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700" data-testid={`modal-receipt-${e.id}`} title={`${e.receipt_book_name || ""} · #${e.receipt_no}`}>{r}</div>}
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-slate-900 truncate">{e.name}</div>
+              <div className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1">
+                <span className="truncate">{e.name}</span>
+                {e.event && (() => { const cc = colorForEvent(e.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`modal-chanda-event-${e.id}`}>{e.event}</span>; })()}
+              </div>
               <div className="text-[10px] text-slate-500 truncate">
                 {e.receipt_book_name ? <span className="text-teal-700 font-medium">{e.receipt_book_name} #{e.receipt_no} · </span> : null}
                 {e.collector} · {e.payment_mode} · {formatDate(e.date)}
@@ -787,7 +793,10 @@ function ExpenseRows({ entries, onEdit }) {
         return (
           <div key={e.id} className="px-3 py-2 flex items-center gap-2" data-testid={`modal-expense-${e.id}`}>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-slate-900 truncate">{e.description}</div>
+              <div className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1">
+                <span className="truncate">{e.description}</span>
+                {e.event && (() => { const cc = colorForEvent(e.event); return <span className={`text-[9px] px-1.5 py-[1px] rounded-full font-semibold shrink-0 ${cc.bg} ${cc.text}`} data-testid={`modal-exp-event-${e.id}`}>{e.event}</span>; })()}
+              </div>
               <div className="text-[10px] text-slate-500 truncate">
                 {e.vendor ? `${e.vendor} · ` : ""}{e.paid_by} · {formatDate(e.date)}
                 {bal > 0.01 ? ` · payable ${formatINR(bal)}` : ""}
