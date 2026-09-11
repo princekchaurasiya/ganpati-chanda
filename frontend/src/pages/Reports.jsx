@@ -12,6 +12,8 @@ import { saveAs } from "file-saver";
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const ALL_COLS = [
+  { key: "receipt_book_name", label: "Book" },
+  { key: "receipt_no", label: "Receipt No" },
   { key: "name", label: "Name" },
   { key: "amount", label: "Amount" },
   { key: "collector", label: "Collector" },
@@ -63,11 +65,15 @@ export default function Reports() {
   const cellValue = (e, k) => {
     if (k === "amount") return formatINR(e.amount);
     if (k === "date") return formatDate(e.date);
+    if (k === "receipt_book_name") return e.receipt_book_name || "";
+    if (k === "receipt_no") return e.receipt_no != null ? String(e.receipt_no) : "";
     return e[k] || "";
   };
   const cellValuePDF = (e, k) => {
     if (k === "amount") return formatRs(e.amount);
     if (k === "date") return formatDate(e.date);
+    if (k === "receipt_book_name") return e.receipt_book_name || "-";
+    if (k === "receipt_no") return e.receipt_no != null ? String(e.receipt_no) : "-";
     return e[k] || "";
   };
 
@@ -147,7 +153,11 @@ export default function Reports() {
     if (activeCols.length === 0) return toast.error("Select at least 1 column");
     const rows = filtered.map((e) => {
       const row = {};
-      activeCols.forEach((c) => { row[c.label] = c.key === "amount" ? e.amount : cellValue(e, c.key); });
+      activeCols.forEach((c) => {
+        if (c.key === "amount") row[c.label] = e.amount;
+        else if (c.key === "receipt_no") row[c.label] = e.receipt_no != null ? e.receipt_no : "";
+        else row[c.label] = cellValue(e, c.key);
+      });
       return row;
     });
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -163,7 +173,10 @@ export default function Reports() {
     const header = activeCols.map((c) => c.label).join(",");
     const rows = filtered.map((e) =>
       activeCols.map((c) => {
-        const v = c.key === "amount" ? e.amount : cellValue(e, c.key);
+        let v;
+        if (c.key === "amount") v = e.amount;
+        else if (c.key === "receipt_no") v = e.receipt_no != null ? e.receipt_no : "";
+        else v = cellValue(e, c.key);
         return `"${String(v).replace(/"/g, '""')}"`;
       }).join(",")
     );
