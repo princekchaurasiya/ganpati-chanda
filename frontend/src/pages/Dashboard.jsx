@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink } from "lucide-react";
+import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 const modeColors = {
@@ -24,7 +24,13 @@ export default function Dashboard() {
   const [expenses, setExpenses] = useState([]);
   const [reimbs, setReimbs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modalKind, setModalKind] = useState(null);
+  const [modalStack, setModalStack] = useState([]);
+  const modalKind = modalStack.length ? modalStack[modalStack.length - 1] : null;
+  const setModalKind = (k) => {
+    if (k === null || k === undefined) setModalStack([]);
+    else setModalStack((s) => [...s, k]);
+  };
+  const goBackModal = () => setModalStack((s) => s.slice(0, -1));
 
   const load = async () => {
     setLoading(true);
@@ -253,6 +259,7 @@ export default function Dashboard() {
           kind={modalKind}
           onClose={() => setModalKind(null)}
           switchKind={setModalKind}
+          onBack={modalStack.length > 1 ? goBackModal : null}
           chandas={chandas}
           expenses={expenses}
           reimbs={reimbs}
@@ -295,7 +302,7 @@ function MiniStat({ label, value, sub, color, testid, onClick }) {
   return <div className={base} data-testid={testid}>{body}</div>;
 }
 
-function StatModal({ kind, onClose, switchKind, chandas, expenses, reimbs, members, reload }) {
+function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimbs, members, reload }) {
   const nav = useNavigate();
   const active = chandas.filter((c) => !c.voided);
   const activeExp = expenses.filter((e) => !e.voided);
@@ -500,7 +507,7 @@ function StatModal({ kind, onClose, switchKind, chandas, expenses, reimbs, membe
             <div className="divide-y divide-red-100/70">
               {Object.entries(byCat).sort((a, b) => b[1].total - a[1].total).map(([c, d]) => (
                 <button key={c} type="button"
-                  onClick={() => { onClose(); nav("/expenses", { state: { initialCat: c } }); }}
+                  onClick={() => switchKind && switchKind(`exp-cat:${c}`)}
                   data-testid={`tally-cat-${c.replace(/\s/g,'-').toLowerCase()}`}
                   className="w-full px-3 py-2 flex items-center gap-2 hover:bg-red-100/50 text-left">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -567,6 +574,47 @@ function StatModal({ kind, onClose, switchKind, chandas, expenses, reimbs, membe
     };
   }
 
+  if (!conf && kind && kind.startsWith("exp-cat:")) {
+    const catName = kind.slice(8);
+    const filtered = activeExp.filter((e) => (e.category || "Other") === catName);
+    const total = filtered.reduce((s, e) => s + (e.amount_paid || 0), 0);
+    const byPayer = {};
+    filtered.forEach((e) => {
+      const k = e.paid_by || "-";
+      if (!byPayer[k]) byPayer[k] = { count: 0, total: 0, entries: [] };
+      byPayer[k].count += 1;
+      byPayer[k].total += e.amount_paid || 0;
+      byPayer[k].entries.push(e);
+    });
+    conf = {
+      title: `${catName} — Expenses`,
+      body: () => (
+        <div>
+          <div className="mx-2 my-2 rounded-xl bg-red-50 border border-red-100 p-3 flex items-center justify-between" data-testid="expcat-summary">
+            <div className="text-xs text-slate-600">{filtered.length} {filtered.length === 1 ? "entry" : "entries"}</div>
+            <div className="font-num font-bold text-lg text-red-700">-{formatINR(total)}</div>
+          </div>
+          <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Kisne kharcha kiya</div>
+          <div className="divide-y divide-slate-100">
+            {Object.entries(byPayer).sort((a, b) => b[1].total - a[1].total).map(([p, d]) => (
+              <div key={p} className="px-3 py-2 flex items-center gap-2" data-testid={`expcat-payer-${p}`}>
+                <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs">{p.charAt(0)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 truncate">{p}</div>
+                  <div className="text-[10px] text-slate-500">{d.count} {d.count === 1 ? "entry" : "entries"}</div>
+                </div>
+                <div className="font-num font-bold text-red-700">-{formatINR(d.total)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100">Entries</div>
+          <ExpenseRows entries={filtered} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />
+        </div>
+      ),
+      deepLink: "/expenses",
+    };
+  }
+
   if (!conf) return null;
 
   return (
@@ -574,6 +622,12 @@ function StatModal({ kind, onClose, switchKind, chandas, expenses, reimbs, membe
       <div className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
+            {onBack && (
+              <button onClick={onBack} data-testid="stat-modal-back"
+                className="w-8 h-8 -ml-1 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600" aria-label="Back">
+                <ArrowLeft size={16} />
+              </button>
+            )}
             <h3 className="text-base font-bold text-slate-900 truncate" data-testid="stat-modal-title">{conf.title}</h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
