@@ -30,3 +30,12 @@ export const backupApi = {
   restore: (payload) => client.post("/restore", payload).then((r) => r.data),
   seed: () => client.post("/seed").then((r) => r.data),
 };
+
+export const expenseApi = {
+  list: () => client.get("/expenses").then((r) => r.data),
+  create: (data) => client.post("/expenses", data).then((r) => r.data),
+  update: (id, data) => client.put(`/expenses/${id}`, data).then((r) => r.data),
+  voidEntry: (id) => client.post(`/expenses/${id}/void`).then((r) => r.data),
+  unvoidEntry: (id) => client.post(`/expenses/${id}/unvoid`).then((r) => r.data),
+  remove: (id) => client.delete(`/expenses/${id}`).then((r) => r.data),
+};

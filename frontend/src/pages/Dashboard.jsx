@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { dashboardApi, chandaApi, backupApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { TrendingUp, TrendingDown, IndianRupee, Users, Wallet, Sparkles } from "lucide-react";
+import { TrendingUp, TrendingDown, IndianRupee, Users, Wallet, Sparkles, Scale, Receipt } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const modeColors = {
@@ -63,6 +63,19 @@ export default function Dashboard() {
         <div className="mt-2 text-xs text-slate-500">{pct}% of expected collected</div>
       </div>
 
+      {/* Balance card */}
+      <div className={`card-elevated p-5 ${stats.balance >= 0 ? "bg-gradient-to-br from-teal-50 to-emerald-50" : "bg-gradient-to-br from-orange-50 to-red-50"}`} data-testid="dashboard-balance-card">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+          <Scale size={16} /> Remaining Balance
+        </div>
+        <div className={`mt-1 text-3xl sm:text-4xl font-extrabold font-num tracking-tight ${stats.balance >= 0 ? "text-teal-800" : "text-red-700"}`} data-testid="stat-balance">
+          {formatINR(stats.balance)}
+        </div>
+        <div className="mt-1 text-xs text-slate-600 font-num">
+          Chanda {formatINR(stats.total_collected)} − Expenses {formatINR(stats.total_expenses || 0)}
+        </div>
+      </div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
@@ -74,12 +87,12 @@ export default function Dashboard() {
           color="orange"
         />
         <StatCard
-          testid="stat-collected-count-card"
-          icon={<TrendingUp size={18} />}
-          label="Collected Entries"
-          value={stats.count_collected}
-          sub={`of ${stats.count_total} total`}
-          color="emerald"
+          testid="stat-expenses-card"
+          icon={<Receipt size={18} />}
+          label="Total Expenses"
+          value={formatINR(stats.total_expenses || 0)}
+          sub={`${stats.count_expenses || 0} entries`}
+          color="red"
         />
       </div>
 
@@ -172,6 +185,7 @@ function StatCard({ icon, label, value, sub, color, testid }) {
   const map = {
     emerald: { bg: "bg-emerald-50", text: "text-emerald-700", ic: "bg-emerald-100 text-emerald-700" },
     orange: { bg: "bg-orange-50", text: "text-orange-700", ic: "bg-orange-100 text-orange-700" },
+    red: { bg: "bg-red-50", text: "text-red-700", ic: "bg-red-100 text-red-700" },
   };
   const c = map[color] || map.emerald;
   return (

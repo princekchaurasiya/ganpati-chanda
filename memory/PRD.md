@@ -20,12 +20,14 @@ Build a simple, lightweight PWA-ready web app for Chanda/Donation collection man
 
 ## Implemented (2026-02)
 - ✅ Add Chanda form with quick-amount chips (₹101/₹251/₹501/₹1100/₹2100/₹5100), preset collectors + free-text new collector, native date picker with Today button
-- ✅ Dashboard: KPI hero, Pending/Collected stat cards, payment-mode grid, collector-wise breakdown with progress bars, Recent 5 entries
+- ✅ Dashboard: KPI hero, Balance card (Chanda − Expenses), Pending & Expenses stat cards, payment-mode grid, collector-wise breakdown with progress bars, Recent 5 entries
 - ✅ Chanda List: search, filter by status/mode/collector/date-range, show-voided toggle, quick status toggle, edit, void with confirm modal
-- ✅ Reports: filters + column-picker checkboxes + PDF/Excel/CSV export with summary header
-- ✅ Settings: manage collectors (add/remove), JSON backup download, JSON restore (merge/replace mode)
-- ✅ Bottom-nav mobile navigation + floating +Add FAB, mobile-first responsive layout
-- ✅ Idempotent seed endpoint with 8 demo entries + 4 default collectors
+- ✅ **Expenses Module (2026-02, iteration 3)**: full CRUD (`/api/expenses`), category chips (Materials/Food/Decoration/Rent/Utilities/Transport/Other), optional paid-by, payment-mode, date, void/unvoid; dedicated /expenses list + /expenses/add form; dashboard now returns `total_expenses`, `count_expenses`, `by_expense_category`, `balance`. Backup/restore v2 includes expenses. Seed adds 3 demo expenses.
+- ✅ **Add sheet**: FAB and header + button open a bottom-sheet that lets users pick Chanda or Expense in one tap.
+- ✅ Reports: filters + column-picker checkboxes + PDF/Excel/CSV export with summary header; PDF uses "Rs." prefix (jsPDF ₹ glyph fix); WhatsApp share button uses Web Share API with wa.me fallback.
+- ✅ Settings: manage collectors (inline edit + delete + rename cascade), JSON backup download, JSON restore (merge/replace mode)
+- ✅ Bottom-nav mobile navigation (Dashboard, Chanda, खर्चे, Reports, Settings) + floating +Add FAB, mobile-first responsive layout
+- ✅ Idempotent seed endpoint with 8 demo chanda entries + 4 default collectors + 3 demo expenses
 - ✅ PWA-installable (manifest.json + theme color)
 
 ## Persona

@@ -1,18 +1,22 @@
-import React from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, PlusCircle, ListChecks, FileDown, Settings } from "lucide-react";
+import React, { useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { LayoutDashboard, HandCoins, Receipt, FileDown, Settings, Plus, X } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard-tab", end: true },
-  { to: "/add", label: "जोड़ें", icon: PlusCircle, testid: "nav-add-tab" },
-  { to: "/list", label: "List", icon: ListChecks, testid: "nav-list-tab" },
+  { to: "/list", label: "Chanda", icon: HandCoins, testid: "nav-chanda-tab" },
+  { to: "/expenses", label: "खर्चे", icon: Receipt, testid: "nav-expenses-tab" },
   { to: "/reports", label: "Reports", icon: FileDown, testid: "nav-reports-tab" },
   { to: "/settings", label: "Settings", icon: Settings, testid: "nav-settings-tab" },
 ];
 
 export default function Layout() {
   const loc = useLocation();
+  const nav = useNavigate();
+  const [addOpen, setAddOpen] = useState(false);
   const activeTab = tabs.find((t) => (t.end ? loc.pathname === t.to : loc.pathname.startsWith(t.to)));
+
+  const goto = (path) => { setAddOpen(false); nav(path); };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
@@ -24,19 +28,19 @@ export default function Layout() {
               चं
             </div>
             <div>
-              <div className="text-lg font-bold tracking-tight text-slate-900" style={{fontFamily:"Outfit"}}>
+              <div className="text-lg font-bold tracking-tight text-slate-900" style={{ fontFamily: "Outfit" }}>
                 Chanda Register
               </div>
               <div className="text-xs text-slate-500 -mt-0.5">{activeTab?.label || "Dashboard"}</div>
             </div>
           </div>
-          <NavLink
-            to="/add"
+          <button
+            onClick={() => setAddOpen(true)}
             data-testid="header-add-btn"
             className="hidden md:inline-flex items-center gap-2 px-4 h-11 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 transition-colors"
           >
-            <PlusCircle size={18} /> Add Chanda
-          </NavLink>
+            <Plus size={18} /> Add
+          </button>
         </div>
       </header>
 
@@ -46,15 +50,64 @@ export default function Layout() {
       </main>
 
       {/* Floating Add button (mobile) */}
-      <NavLink
-        to="/add"
+      <button
+        onClick={() => setAddOpen(true)}
         data-testid="fab-add-btn"
-        className="md:hidden fixed right-4 z-50 bg-teal-600 text-white rounded-full shadow-xl w-14 h-14 flex items-center justify-center active:scale-95 transition-transform"
+        className="md:hidden fixed right-4 z-40 bg-teal-600 text-white rounded-full shadow-xl w-14 h-14 flex items-center justify-center active:scale-95 transition-transform"
         style={{ bottom: "calc(88px + env(safe-area-inset-bottom))" }}
-        aria-label="Add Chanda"
+        aria-label="Add"
       >
-        <PlusCircle size={26} />
-      </NavLink>
+        <Plus size={26} />
+      </button>
+
+      {/* Add sheet */}
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+          onClick={() => setAddOpen(false)}
+          data-testid="add-sheet"
+        >
+          <div
+            className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-slate-900">Add New</h3>
+              <button onClick={() => setAddOpen(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => goto("/add")}
+                data-testid="add-chanda-choice"
+                className="w-full h-14 rounded-2xl bg-emerald-50 hover:bg-emerald-100 flex items-center gap-3 px-4 text-left border border-emerald-200 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                  <HandCoins size={20} />
+                </div>
+                <div>
+                  <div className="font-semibold text-emerald-900">Chanda (चंदा)</div>
+                  <div className="text-xs text-emerald-700">Money collected / expected</div>
+                </div>
+              </button>
+              <button
+                onClick={() => goto("/expenses/add")}
+                data-testid="add-expense-choice"
+                className="w-full h-14 rounded-2xl bg-red-50 hover:bg-red-100 flex items-center gap-3 px-4 text-left border border-red-200 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center">
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <div className="font-semibold text-red-900">Expense (खर्चा)</div>
+                  <div className="text-xs text-red-700">Money spent</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom nav */}
       <nav

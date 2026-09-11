@@ -8,6 +8,8 @@ import AddChanda from "@/pages/AddChanda";
 import ChandaList from "@/pages/ChandaList";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
+import Expenses from "@/pages/Expenses";
+import AddExpense from "@/pages/AddExpense";
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="add" element={<AddChanda />} />
           <Route path="list" element={<ChandaList />} />
+          <Route path="expenses" element={<Expenses />} />
+          <Route path="expenses/add" element={<AddExpense />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
         </Route>

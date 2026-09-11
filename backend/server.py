@@ -25,6 +25,7 @@ api_router = APIRouter(prefix="/api")
 # ============= Models =============
 PaymentMode = Literal["Cash", "UPI", "Bank Transfer", "Other"]
 Status = Literal["Pending", "Collected"]
+ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Other"]
 
 
 class ChandaBase(BaseModel):
@@ -75,6 +76,40 @@ class CollectorCreate(BaseModel):
 
 class CollectorUpdate(BaseModel):
     name: str
+
+
+class ExpenseBase(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    description: str
+    amount: float
+    category: ExpenseCategory = "Other"
+    payment_mode: PaymentMode = "Cash"
+    paid_by: Optional[str] = None
+    date: str
+    note: Optional[str] = None
+
+
+class ExpenseCreate(ExpenseBase):
+    pass
+
+
+class ExpenseUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    category: Optional[ExpenseCategory] = None
+    payment_mode: Optional[PaymentMode] = None
+    paid_by: Optional[str] = None
+    date: Optional[str] = None
+    note: Optional[str] = None
+    voided: Optional[bool] = None
+
+
+class Expense(ExpenseBase):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    voided: bool = False
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 # ============= Helpers =============
@@ -217,10 +252,76 @@ async def delete_collector(collector_id: str):
     return {"ok": True}
 
 
+# ============= Expense Routes =============
+@api_router.post("/expenses", response_model=Expense)
+async def create_expense(payload: ExpenseCreate):
+    exp = Expense(**payload.model_dump())
+    await db.expenses.insert_one(exp.model_dump())
+    return exp
+
+
+@api_router.get("/expenses", response_model=List[Expense])
+async def list_expenses():
+    docs = await db.expenses.find({}, {"_id": 0}).sort("date", -1).to_list(10000)
+    return docs
+
+
+@api_router.get("/expenses/{expense_id}", response_model=Expense)
+async def get_expense(expense_id: str):
+    doc = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Expense not found")
+    return doc
+
+
+@api_router.put("/expenses/{expense_id}", response_model=Expense)
+async def update_expense(expense_id: str, payload: ExpenseUpdate):
+    existing = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Expense not found")
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.expenses.update_one({"id": expense_id}, {"$set": update_data})
+    return await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+
+
+@api_router.post("/expenses/{expense_id}/void", response_model=Expense)
+async def void_expense(expense_id: str):
+    existing = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Expense not found")
+    await db.expenses.update_one(
+        {"id": expense_id},
+        {"$set": {"voided": True, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+
+
+@api_router.post("/expenses/{expense_id}/unvoid", response_model=Expense)
+async def unvoid_expense(expense_id: str):
+    existing = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Expense not found")
+    await db.expenses.update_one(
+        {"id": expense_id},
+        {"$set": {"voided": False, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+
+
+@api_router.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str):
+    res = await db.expenses.delete_one({"id": expense_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Expense not found")
+    return {"ok": True}
+
+
 # ============= Dashboard =============
 @api_router.get("/dashboard")
 async def dashboard():
     docs = await db.chandas.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(10000)
+    exp_docs = await db.expenses.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(10000)
 
     total_expected = sum(d["amount"] for d in docs)
     collected = [d for d in docs if d["status"] == "Collected"]
@@ -236,6 +337,12 @@ async def dashboard():
     for d in collected:
         by_collector[d["collector"]] = by_collector.get(d["collector"], 0) + d["amount"]
 
+    total_expenses = sum(d["amount"] for d in exp_docs)
+    by_expense_category = {}
+    for d in exp_docs:
+        by_expense_category[d["category"]] = by_expense_category.get(d["category"], 0) + d["amount"]
+    balance = total_collected - total_expenses
+
     return {
         "total_expected": total_expected,
         "total_collected": total_collected,
@@ -245,6 +352,10 @@ async def dashboard():
         "count_total": len(docs),
         "by_payment_mode": by_mode,
         "by_collector": by_collector,
+        "total_expenses": total_expenses,
+        "count_expenses": len(exp_docs),
+        "by_expense_category": by_expense_category,
+        "balance": balance,
     }
 
 
@@ -253,11 +364,13 @@ async def dashboard():
 async def backup():
     chandas = await db.chandas.find({}, {"_id": 0}).to_list(10000)
     collectors = await db.collectors.find({}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({}, {"_id": 0}).to_list(10000)
     return {
-        "version": 1,
+        "version": 2,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "chandas": chandas,
         "collectors": collectors,
+        "expenses": expenses,
     }
 
 
@@ -265,6 +378,7 @@ class RestorePayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     chandas: List[dict] = []
     collectors: List[dict] = []
+    expenses: List[dict] = []
     mode: Literal["replace", "merge"] = "merge"
 
 
@@ -273,6 +387,7 @@ async def restore(payload: RestorePayload):
     if payload.mode == "replace":
         await db.chandas.delete_many({})
         await db.collectors.delete_many({})
+        await db.expenses.delete_many({})
 
     inserted_chandas = 0
     for c in payload.chandas:
@@ -290,10 +405,19 @@ async def restore(payload: RestorePayload):
         await db.collectors.update_one({"id": c["id"]}, {"$set": c}, upsert=True)
         inserted_collectors += 1
 
+    inserted_expenses = 0
+    for e in payload.expenses:
+        e.pop("_id", None)
+        if "id" not in e:
+            e["id"] = str(uuid.uuid4())
+        await db.expenses.update_one({"id": e["id"]}, {"$set": e}, upsert=True)
+        inserted_expenses += 1
+
     return {
         "ok": True,
         "chandas_restored": inserted_chandas,
         "collectors_restored": inserted_collectors,
+        "expenses_restored": inserted_expenses,
     }
 
 
@@ -326,7 +450,16 @@ async def seed():
             entry.collected_at = datetime.now(timezone.utc).isoformat()
         await db.chandas.insert_one(entry.model_dump())
 
-    return {"seeded": True, "chandas": len(demo), "collectors": len(default_collectors)}
+    demo_expenses = [
+        {"description": "Tent & Chairs", "amount": 3500, "category": "Materials", "payment_mode": "Cash", "paid_by": "Amit Sharma"},
+        {"description": "Prasad & Bhog", "amount": 1800, "category": "Food", "payment_mode": "UPI", "paid_by": "Rahul Verma"},
+        {"description": "Flowers & Garlands", "amount": 750, "category": "Decoration", "payment_mode": "Cash", "paid_by": "Pooja Iyer"},
+    ]
+    for d in demo_expenses:
+        e = Expense(**d, date=today)
+        await db.expenses.insert_one(e.model_dump())
+
+    return {"seeded": True, "chandas": len(demo), "collectors": len(default_collectors), "expenses": len(demo_expenses)}
 
 
 app.include_router(api_router)
