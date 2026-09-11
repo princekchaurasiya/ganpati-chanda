@@ -370,10 +370,10 @@ export default function Expenses() {
                   </>
                 )}
 
-                <div className={`px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide ${!payerFocus ? "border-t border-slate-100 mt-1" : ""}`}>
+                <div className={`px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide ${!payerFocus ? "border-t border-slate-100 mt-1" : ""} ${!payerFocus ? "hidden" : ""}`}>
                   {payerFocus ? `${payerFocus} ki entries` : "Entries"}
                 </div>
-                <div className="divide-y divide-slate-50 pb-4">
+                <div className={`divide-y divide-slate-50 pb-4 ${!payerFocus ? "hidden" : ""}`}>
                   {visibleEntries.map((e) => (
                     <div key={e.id} className="px-4 py-2.5 flex items-start gap-3" data-testid={`exp-cat-entry-${e.id}`}>
                       <div className="flex-1 min-w-0">
