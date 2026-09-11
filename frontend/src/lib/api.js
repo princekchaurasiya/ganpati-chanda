@@ -17,6 +17,7 @@ export const chandaApi = {
 export const collectorApi = {
   list: () => client.get("/collectors").then((r) => r.data),
   create: (name) => client.post("/collectors", { name }).then((r) => r.data),
+  update: (id, name) => client.put(`/collectors/${id}`, { name }).then((r) => r.data),
   remove: (id) => client.delete(`/collectors/${id}`).then((r) => r.data),
 };
 

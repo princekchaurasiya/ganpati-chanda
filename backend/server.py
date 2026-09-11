@@ -73,6 +73,10 @@ class CollectorCreate(BaseModel):
     name: str
 
 
+class CollectorUpdate(BaseModel):
+    name: str
+
+
 # ============= Helpers =============
 def clean_doc(doc: dict) -> dict:
     if doc and "_id" in doc:
@@ -179,6 +183,30 @@ async def create_collector(payload: CollectorCreate):
     collector = Collector(name=name)
     await db.collectors.insert_one(collector.model_dump())
     return collector
+
+
+@api_router.put("/collectors/{collector_id}", response_model=Collector)
+async def update_collector(collector_id: str, payload: CollectorUpdate):
+    new_name = payload.name.strip()
+    if not new_name:
+        raise HTTPException(400, "Name is required")
+    existing = await db.collectors.find_one({"id": collector_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Collector not found")
+    old_name = existing["name"]
+    if old_name == new_name:
+        return existing
+    # Ensure not duplicating another collector
+    dup = await db.collectors.find_one({"name": new_name, "id": {"$ne": collector_id}}, {"_id": 0})
+    if dup:
+        raise HTTPException(400, "A collector with this name already exists")
+    await db.collectors.update_one({"id": collector_id}, {"$set": {"name": new_name}})
+    # Cascade rename in existing chanda entries
+    await db.chandas.update_many(
+        {"collector": old_name},
+        {"$set": {"collector": new_name, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return await db.collectors.find_one({"id": collector_id}, {"_id": 0})
 
 
 @api_router.delete("/collectors/{collector_id}")

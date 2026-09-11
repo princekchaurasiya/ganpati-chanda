@@ -1,0 +1,22 @@
+{
+  "summary": "Retest of 3 deltas (PUT /collectors/{id} + cascade, Settings inline edit/delete-modal, Reports WhatsApp share + PDF Rs. prefix). All backend cases and frontend flows passed. PDF verified contains 'Rs. 88,235' style values with no mangled ₹ glyph and no digit-spacing artifacts.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "PUT /api/collectors/{id} rename valid -> 200 and cascades collector field in chandas (verified via CascadeTester entry)",
+    "PUT /api/collectors/{id} rename to duplicate name of another collector -> 400 with detail 'A collector with this name already exists'",
+    "PUT /api/collectors/{id} rename to same name -> 200 no-op returning existing collector",
+    "PUT /api/collectors/{id} unknown id -> 404 'Collector not found'",
+    "DELETE /api/collectors/{id} -> 200 {ok:true}",
+    "Settings: each collector row exposes edit-collector-{id} pencil and remove-collector-{id} trash icons",
+    "Settings inline edit: pencil converts row into edit-collector-input-{id} + save-collector-{id} + cancel-edit-collector-{id}; Save renames on backend and row updates to new name",
+    "Renamed collector appears in /add page collector dropdown (found in DOM HTML)",
+    "Settings delete flow: trash opens delete-collector-modal; Cancel closes it; Confirm removes collector row",
+    "Reports: share-whatsapp-btn is visible below export-pdf-btn; click triggers fallback path (opens https://wa.me/?text=... containing 'Rs. 88,235' summary and downloads PDF) with no JS pageerror",
+    "Reports PDF export: downloaded PDF text contains 55 'Rs.' occurrences, no ₹ character, amount samples ['Rs. 88,235','Rs. 63,011','Rs. 25,224','Rs. 5,051','Rs. 1,100','Rs. 501'] render as clean numbers"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

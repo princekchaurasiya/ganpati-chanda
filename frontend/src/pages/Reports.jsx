@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { chandaApi, collectorApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { FileText, FileSpreadsheet, FileDown } from "lucide-react";
+import { FileText, FileSpreadsheet, FileDown, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+
+// jsPDF's default Helvetica cannot render ₹ glyph — use "Rs." for PDF only.
+const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const ALL_COLS = [
   { key: "name", label: "Name" },
@@ -62,40 +65,82 @@ export default function Reports() {
     if (k === "date") return formatDate(e.date);
     return e[k] || "";
   };
+  const cellValuePDF = (e, k) => {
+    if (k === "amount") return formatRs(e.amount);
+    if (k === "date") return formatDate(e.date);
+    return e[k] || "";
+  };
 
   const activeCols = ALL_COLS.filter((c) => selectedCols.includes(c.key));
 
-  const exportPDF = () => {
-    if (activeCols.length === 0) return toast.error("Select at least 1 column");
+  const buildPDF = () => {
     const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.text("Chanda Collection Report", 14, 16);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 22);
 
-    // Summary
     doc.setFontSize(11);
     doc.setTextColor(0);
     const summary = [
       `Total Entries: ${totals.count}`,
-      `Total Amount: ${formatINR(totals.total)}`,
-      `Collected: ${formatINR(totals.collected)}`,
-      `Pending: ${formatINR(totals.pending)}`,
+      `Total Amount: ${formatRs(totals.total)}`,
+      `Collected:    ${formatRs(totals.collected)}`,
+      `Pending:      ${formatRs(totals.pending)}`,
     ];
     summary.forEach((s, i) => doc.text(s, 14, 32 + i * 6));
 
     autoTable(doc, {
       startY: 62,
       head: [activeCols.map((c) => c.label)],
-      body: filtered.map((e) => activeCols.map((c) => cellValue(e, c.key))),
-      styles: { fontSize: 9, cellPadding: 2 },
+      body: filtered.map((e) => activeCols.map((c) => cellValuePDF(e, c.key))),
+      styles: { font: "helvetica", fontSize: 10, cellPadding: 3, textColor: [15, 23, 42] },
       headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: activeCols.reduce((acc, c, i) => {
+        if (c.key === "amount") acc[i] = { halign: "right", fontStyle: "bold" };
+        return acc;
+      }, {}),
     });
+    return doc;
+  };
 
+  const exportPDF = () => {
+    if (activeCols.length === 0) return toast.error("Select at least 1 column");
+    const doc = buildPDF();
     doc.save(`chanda-report-${new Date().toISOString().slice(0, 10)}.pdf`);
     toast.success("PDF downloaded");
+  };
+
+  const shareWhatsApp = async () => {
+    if (activeCols.length === 0) return toast.error("Select at least 1 column");
+    const doc = buildPDF();
+    const filename = `chanda-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+    try {
+      const blob = doc.output("blob");
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Chanda Collection Report",
+          text: `Chanda Report — Total: ${formatRs(totals.total)}, Collected: ${formatRs(totals.collected)}, Pending: ${formatRs(totals.pending)}`,
+        });
+        toast.success("Shared");
+        return;
+      }
+      // Fallback: download PDF + open WhatsApp with summary text
+      doc.save(filename);
+      const text = encodeURIComponent(
+        `*Chanda Collection Report*\nEntries: ${totals.count}\nTotal: ${formatRs(totals.total)}\nCollected: ${formatRs(totals.collected)}\nPending: ${formatRs(totals.pending)}\n\n(PDF file downloaded — attach it to this WhatsApp chat)`
+      );
+      window.open(`https://wa.me/?text=${text}`, "_blank");
+      toast.info("PDF downloaded — attach it in the WhatsApp window");
+    } catch (err) {
+      if (err?.name !== "AbortError") toast.error("Share failed");
+    }
   };
 
   const exportExcel = () => {
@@ -211,6 +256,10 @@ export default function Reports() {
         <button onClick={exportPDF} data-testid="export-pdf-btn"
           className="w-full h-12 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center justify-center gap-2">
           <FileText size={18} /> Download PDF
+        </button>
+        <button onClick={shareWhatsApp} data-testid="share-whatsapp-btn"
+          className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#1EBE5A] text-white font-semibold flex items-center justify-center gap-2">
+          <Share2 size={18} /> Share PDF on WhatsApp
         </button>
         <button onClick={exportExcel} data-testid="export-excel-btn"
           className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2">
