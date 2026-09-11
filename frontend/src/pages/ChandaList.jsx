@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { chandaApi, collectorApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { Search, Pencil, Ban, RotateCcw, CheckCircle2, Clock, X } from "lucide-react";
@@ -10,13 +10,14 @@ const STATUSES = ["All", "Pending", "Collected"];
 
 export default function ChandaList() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const [entries, setEntries] = useState([]);
   const [collectors, setCollectors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("All");
-  const [mode, setMode] = useState("All");
-  const [collector, setCollector] = useState("All");
+  const [status, setStatus] = useState(STATUSES.includes(params.get("status")) ? params.get("status") : "All");
+  const [mode, setMode] = useState(MODES.includes(params.get("mode")) ? params.get("mode") : "All");
+  const [collector, setCollector] = useState(params.get("collector") || "All");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [showVoided, setShowVoided] = useState(false);

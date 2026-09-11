@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { dashboardApi, chandaApi, backupApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { TrendingUp, TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ArrowRightLeft } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ArrowRightLeft, ChevronRight } from "lucide-react";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -69,9 +69,9 @@ export default function Dashboard() {
           <Link to="/list" className="text-xs font-medium text-teal-700" data-testid="chanda-view-link">View all →</Link>
         </div>
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <MiniStat testid="stat-promised" label="Promised" value={formatINR(ch.total_promised)} color="slate" />
-          <MiniStat testid="stat-received" label="Received" value={formatINR(ch.total_received)} color="emerald" />
-          <MiniStat testid="stat-pending" label="Pending" value={formatINR(ch.total_pending)} color="orange" />
+          <MiniStat testid="stat-promised" label="Promised" value={formatINR(ch.total_promised)} color="slate" to="/list" />
+          <MiniStat testid="stat-received" label="Received" value={formatINR(ch.total_received)} color="emerald" to="/list?status=Collected" />
+          <MiniStat testid="stat-pending" label="Pending" value={formatINR(ch.total_pending)} color="orange" to="/list?status=Pending" />
         </div>
         <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${receivedPct}%` }} />
@@ -88,9 +88,9 @@ export default function Dashboard() {
           <Link to="/expenses" className="text-xs font-medium text-teal-700" data-testid="expenses-view-link">View all →</Link>
         </div>
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <MiniStat testid="stat-bill" label="Total Bill" value={formatINR(ex.total_bill)} color="slate" />
-          <MiniStat testid="stat-paid" label="Paid" value={formatINR(ex.total_paid)} color="red" />
-          <MiniStat testid="stat-payable" label="Payable" value={formatINR(ex.total_payable)} color="orange" />
+          <MiniStat testid="stat-bill" label="Total Bill" value={formatINR(ex.total_bill)} color="slate" to="/expenses" />
+          <MiniStat testid="stat-paid" label="Paid" value={formatINR(ex.total_paid)} color="red" to="/expenses" />
+          <MiniStat testid="stat-payable" label="Payable" value={formatINR(ex.total_payable)} color="orange" to="/expenses" />
         </div>
         <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full bg-red-500 transition-all" style={{ width: `${paidPct}%` }} />
@@ -104,8 +104,8 @@ export default function Dashboard() {
           <Wallet size={16} className="text-teal-700" /> Money Position
         </h2>
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat testid="stat-cash-held" label="Cash Held by Members" value={formatINR(mp.cash_held)} color="teal" />
-          <MiniStat testid="stat-paid-total" label="Paid Toward Expenses" value={formatINR(mp.total_paid_to_expenses)} color="red" />
+          <MiniStat testid="stat-cash-held" label="Cash Held by Members" value={formatINR(mp.cash_held)} color="teal" to="/members" />
+          <MiniStat testid="stat-paid-total" label="Paid Toward Expenses" value={formatINR(mp.total_paid_to_expenses)} color="red" to="/expenses" />
         </div>
       </section>
 
@@ -167,9 +167,9 @@ export default function Dashboard() {
             )}
           </div>
           <div className="grid grid-cols-3 gap-2 mb-3">
-            <MiniStat testid="stat-personal-contribution" label="Personal Contribution" value={formatINR(stats.reimbursements.total_personal_contribution)} color="amber" />
-            <MiniStat testid="stat-reimbursed" label="Reimbursed" value={formatINR(stats.reimbursements.total_reimbursed)} color="emerald" />
-            <MiniStat testid="stat-reimb-outstanding" label="Outstanding" value={formatINR(stats.reimbursements.outstanding)} color={stats.reimbursements.outstanding > 0.01 ? "red" : "slate"} />
+            <MiniStat testid="stat-personal-contribution" label="Personal Contribution" value={formatINR(stats.reimbursements.total_personal_contribution)} color="amber" to="/members" />
+            <MiniStat testid="stat-reimbursed" label="Reimbursed" value={formatINR(stats.reimbursements.total_reimbursed)} color="emerald" to="/members" />
+            <MiniStat testid="stat-reimb-outstanding" label="Outstanding" value={formatINR(stats.reimbursements.outstanding)} color={stats.reimbursements.outstanding > 0.01 ? "red" : "slate"} to={stats.reimbursements.outstanding > 0.01 ? "/reimburse/add" : "/members"} />
           </div>
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-xs sm:text-sm" data-testid="advances-table">
@@ -253,19 +253,32 @@ export default function Dashboard() {
   );
 }
 
-function MiniStat({ label, value, sub, color, testid }) {
+function MiniStat({ label, value, sub, color, testid, to }) {
   const map = {
     emerald: "bg-emerald-50 text-emerald-700",
     orange: "bg-orange-50 text-orange-700",
     red: "bg-red-50 text-red-700",
     teal: "bg-teal-50 text-teal-700",
+    amber: "bg-amber-50 text-amber-700",
     slate: "bg-slate-50 text-slate-700",
   };
-  return (
-    <div className={`rounded-xl p-2.5 ${map[color] || map.slate}`} data-testid={testid}>
-      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</div>
+  const base = `rounded-xl p-2.5 ${map[color] || map.slate}`;
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-1">
+        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</div>
+        {to && <ChevronRight size={12} className="text-slate-400 shrink-0" />}
+      </div>
       <div className="text-base sm:text-lg font-extrabold font-num mt-0.5">{value}</div>
       {sub && <div className="text-[10px] text-slate-500">{sub}</div>}
-    </div>
+    </>
   );
+  if (to) {
+    return (
+      <Link to={to} data-testid={testid} className={`${base} block hover:brightness-95 active:scale-[0.98] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400`}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={base} data-testid={testid}>{body}</div>;
 }
