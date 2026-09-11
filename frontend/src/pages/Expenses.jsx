@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight } from "lucide-react";
+import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 
 const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
@@ -94,15 +95,33 @@ export default function Expenses() {
 
   return (
     <div className="space-y-4" data-testid="expenses-page">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Expenses (खर्चे)</h1>
-        <button
-          onClick={() => nav("/expenses/add")}
-          data-testid="expenses-add-btn"
-          className="h-10 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 text-sm"
-        >
-          <Plus size={16} /> Add
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { try { downloadExpensesPDF(filtered, byCategory); toast.success("PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
+            data-testid="exp-export-pdf-btn"
+            title="Export PDF"
+            className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
+          >
+            <FileText size={16} /> PDF
+          </button>
+          <button
+            onClick={() => { try { downloadExpensesExcel(filtered, byCategory); toast.success("Excel downloaded"); } catch { toast.error("Excel export failed"); } }}
+            data-testid="exp-export-excel-btn"
+            title="Export Excel"
+            className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
+          >
+            <FileSpreadsheet size={16} /> Excel
+          </button>
+          <button
+            onClick={() => nav("/expenses/add")}
+            data-testid="expenses-add-btn"
+            className="h-10 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 text-sm"
+          >
+            <Plus size={16} /> Add
+          </button>
+        </div>
       </div>
 
       {/* Search */}

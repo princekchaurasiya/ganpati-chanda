@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { memberApi, transferApi, ledgerApi, collectorApi } from "@/lib/api";
 import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
-import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus } from "lucide-react";
+import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus, FileText, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import { downloadMembersPDF, downloadMembersExcel } from "@/lib/exports";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 export default function Members() {
@@ -102,15 +103,31 @@ export default function Members() {
 
   return (
     <div className="space-y-4" data-testid="members-page">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Members & Ledger</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => { try { downloadMembersPDF(members, ledger); toast.success("PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
+            data-testid="members-export-pdf-btn"
+            title="Export Members + Ledger as PDF"
+            className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
+          >
+            <FileText size={16} /> PDF
+          </button>
+          <button
+            onClick={() => { try { downloadMembersExcel(members, ledger); toast.success("Excel downloaded"); } catch { toast.error("Excel export failed"); } }}
+            data-testid="members-export-excel-btn"
+            title="Export Members + Ledger as Excel"
+            className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
+          >
+            <FileSpreadsheet size={16} /> Excel
+          </button>
           <button
             onClick={() => { setShowAddMember(true); setNewMemberName(""); }}
             data-testid="members-add-btn"
             className="h-10 px-3 rounded-xl bg-white border border-teal-600 text-teal-700 hover:bg-teal-50 font-semibold flex items-center gap-1 text-sm"
           >
-            <UserPlus size={16} /> Add Member
+            <UserPlus size={16} /> Add
           </button>
           <button
             onClick={() => nav("/transfer/add")}
