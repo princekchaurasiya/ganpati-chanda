@@ -6,7 +6,7 @@ import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileTex
 import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 
-const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 
 const catColor = {
@@ -16,6 +16,7 @@ const catColor = {
   Decoration: { bg: "bg-pink-50", text: "text-pink-700" },
   "Police & BMC": { bg: "bg-red-50", text: "text-red-700" },
   Documents: { bg: "bg-slate-50", text: "text-slate-700" },
+  "Dahi Handi": { bg: "bg-emerald-50", text: "text-emerald-700" },
   Materials: { bg: "bg-blue-50", text: "text-blue-700" },
   Food: { bg: "bg-orange-50", text: "text-orange-700" },
   Rent: { bg: "bg-purple-50", text: "text-purple-700" },
