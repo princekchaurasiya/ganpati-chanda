@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 7 verified. Backend: real-data import (38 chandas, 4 collectors incl. Monu/Shrikant/Ramakant amit brijesh/Mogli), dashboard totals 72832/58909/13923 with 38 total. Ledger now returns entries[] with created_at, sorted most-recent-first, first entry is Kundan Bhai ₹5051 on 2026-09-09. All 5 pytest cases pass. Frontend: 'Tap to edit entries' pill visible on all 6 member cards. Ledger tab row 0 renders '9 Sept 2026 · 10:00 am IST' via formatDateTimeIST. FAB overlap fix confirmed — last pencil (edit-chanda) at bottom of /members/Ramakant%20amit%20brijesh is clickable WITHOUT force after pb-24 added to MemberDetail root. All 4 iteration_6 issues + new IST feature validated.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/dashboard", "issue": "count_collected=14 / count_pending=24 (spec said 12/26). Sums to 38. Backend classifies rows with received>0 (partial receipts) as 'collected'. Minor spec vs data mismatch — not a bug, but worth confirming with user."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AddChanda receipt-book <select>", "issues": ["Pre-existing dev-tool <span> inside <option> hydration warning still logged. Harmless; noted in iteration_6."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_7.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Confirm with user whether partial-received (received>0 but < promised) should count as 'collected' (current backend behavior) or 'pending' (spec suggests). Currently: 14 collected / 24 pending vs spec 12 / 26. Totals unaffected."
+  ],
+  "critical_code_review_comments": [
+    "format.js formatDateTimeIST uses toLocaleDateString/TimeString with timeZone: 'Asia/Kolkata' — correct and locale-safe.",
+    "Ledger endpoint returns created_at ISO with +00:00 UTC offset — frontend converts to IST correctly.",
+    "MemberDetail root has pb-24 (96px) — sufficient clearance above 56px FAB + 72px bottom nav on mobile. Verified last pencil clickable without force.",
+    "Members.jsx line 142 pill renders correctly on all 6 member cards including new collectors (Ramakant amit brijesh, Mogli)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_7.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "100% (pill + IST + FAB clearance all pass)"},
+  "seed_data_creation": "None. No data mutations performed to preserve imported real data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Ledger endpoint shape is {'entries': [...]}. First entry currently Kundan Bhai 2026-09-09 UTC 04:30 → IST 10:00 AM. 38 chandas, all receipt_book_id/receipt_no null. Books B1 & B2 exist but unused. Dashboard classifies partial-received as collected (14/24 vs 12/26 spec).",
+  "rca of the issue": "N/A — no bugs found in iteration_7 scope. Only cosmetic item is count_collected/pending classification which is a spec-vs-implementation ambiguity, not a defect."
+}

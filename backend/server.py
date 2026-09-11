@@ -206,7 +206,7 @@ class ReceiptBook(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str  # e.g., "Book 1"
-    prefix: str  # e.g., "B1"
+    prefix: Optional[str] = None  # e.g., "B1"
     start_no: int = 1
     end_no: int = 50
     assigned_to: Optional[str] = None
@@ -426,7 +426,12 @@ async def update_receipt_book(book_id: str, payload: ReceiptBookUpdate):
     existing = await db.receipt_books.find_one({"id": book_id}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Receipt book not found")
-    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    update_data = payload.model_dump()
+    # None-valued fields on required scalars mean "not sent" — skip them.
+    # For nullable fields (assigned_to, note), None means "clear the value".
+    for req in ("name", "prefix", "start_no", "end_no"):
+        if update_data.get(req) is None:
+            update_data.pop(req, None)
     if "name" in update_data:
         update_data["name"] = update_data["name"].strip()
         dup = await db.receipt_books.find_one({"name": update_data["name"], "id": {"$ne": book_id}}, {"_id": 0})
@@ -849,6 +854,7 @@ async def ledger():
             "amount": c.get("received_amount", 0), "promised": c["amount"],
             "status": c.get("status"), "voided": c.get("voided", False),
             "payment_mode": c.get("payment_mode"), "ref_id": c["id"],
+            "created_at": c.get("created_at"),
         })
     async for t in db.transfers.find({}, {"_id": 0}):
         entries.append({
@@ -856,6 +862,7 @@ async def ledger():
             "from_party": t["from_member"], "to_party": t["to_member"],
             "amount": t["amount"], "voided": t.get("voided", False),
             "ref_id": t["id"], "note": t.get("note"),
+            "created_at": t.get("created_at"),
         })
     async for e in db.expenses.find({}, {"_id": 0}):
         entries.append({
@@ -868,6 +875,7 @@ async def ledger():
             "total_bill": e.get("total_bill", 0),
             "voided": e.get("voided", False), "ref_id": e["id"],
             "description": e["description"],
+            "created_at": e.get("created_at"),
         })
     async for r in db.reimbursements.find({}, {"_id": 0}):
         entries.append({
@@ -876,8 +884,9 @@ async def ledger():
             "amount": r["amount"], "voided": r.get("voided", False),
             "payment_mode": r.get("payment_mode"), "ref_id": r["id"],
             "note": r.get("note"),
+            "created_at": r.get("created_at"),
         })
-    entries.sort(key=lambda x: (x["date"], x.get("ref_id", "")), reverse=True)
+    entries.sort(key=lambda x: (x.get("created_at") or "", x["date"], x.get("ref_id", "")), reverse=True)
     return {"entries": entries}
 
 

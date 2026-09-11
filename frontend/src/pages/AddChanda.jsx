@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { chandaApi, collectorApi, receiptBookApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
@@ -71,10 +71,26 @@ export default function AddChanda() {
     receiptBookApi.list().then(setBooks).catch(() => {});
   }, []);
 
+  // Auto-select last-used receipt book when adding a new entry
+  useEffect(() => {
+    if (editing || receiptBookId || books.length === 0) return;
+    chandaApi.list().then((entries) => {
+      const active = (entries || []).filter((c) => !c.voided && c.receipt_book_id);
+      if (active.length === 0) return;
+      // list() returns entries sorted date desc, created_at desc — pick the first with a book that still exists
+      const last = active.find((c) => books.some((b) => b.id === c.receipt_book_id));
+      if (last) setReceiptBookId(last.receipt_book_id);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books]);
+
+  const userEditedNoRef = useRef(false);
+
   useEffect(() => {
     if (!receiptBookId || editing) return;
     receiptBookApi.next(receiptBookId).then((r) => {
-      if (r.next != null && !receiptNo) setReceiptNo(String(r.next));
+      // Always auto-fill next receipt number when book changes, unless the user has manually typed one
+      if (r.next != null && !userEditedNoRef.current) setReceiptNo(String(r.next));
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptBookId]);
@@ -194,7 +210,7 @@ export default function AddChanda() {
             type="number"
             inputMode="numeric"
             value={receiptNo}
-            onChange={(e) => setReceiptNo(e.target.value)}
+            onChange={(e) => { userEditedNoRef.current = true; setReceiptNo(e.target.value); }}
             placeholder="Receipt No."
             disabled={!receiptBookId}
             data-testid="add-receipt-no-input"

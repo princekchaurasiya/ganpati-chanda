@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only verification of iteration_6 changes. REGRESSION FIX for AddChanda receipt-book/receipt-no auto-fill PASSES fully. Pencil edit buttons on all row types in MemberDetail work as designed (edit-chanda, edit-transfer, edit-transfer-in, edit-expense present; edit-reimb-in/out not exercised because seed Monu has no reimbursements). Two issues found: (1) The advertised 'Tap to edit entries' pill is NOT rendered on Member cards in /members — code inspection confirms no such element exists in Members.jsx. (2) MOBILE UX BUG: the fixed FAB Add button (bottom-right, w-14 h-14) overlays the right-side pencil icons of the LAST visible row on the MemberDetail page. Playwright reproduced this deterministically for the expense row pencil (bounding box x=325,y=774 in 390x844 viewport); FAB intercepts pointer events, so real mobile users cannot tap those pencils. Regression safety flows (Rename/Delete member modals, new chanda end-to-end save with auto-filled Book 2 #52) all pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Members.jsx (member card)", "issue": "'Tap to edit entries' pill described in the review request is MISSING. Grep for 'Tap to edit' returns 0 matches. Member cards show only name + '{n} collections' + Currently Held + ⋮ menu.", "selector": "[data-testid=\"member-card-{name}\"]", "priority": "HIGH"},
+      {"component": "MemberDetail.jsx pencil row buttons vs Layout.jsx FAB", "issue": "Mobile-only overlap: the fixed FAB Add button (data-testid=fab-add-btn, right-4 bottom, z-40, 56x56) intercepts pointer events for pencil icons on the bottom-most row of any section (e.g. edit-expense pencil at right-4 sits directly under the FAB). Reproduced with Playwright: click times out with 'fab-add-btn intercepts pointer events'. Users on mobile cannot tap those pencils unless the row is scrolled up. Same overlap risk with bottom nav bar for a row that lands under the ~72px bottom nav.", "selector": "[data-testid^=\"edit-expense-\"] (and any last-row edit-*)", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AddChanda receipt-book <select>", "issues": ["React hydration warning in console: '<span> cannot be a child of <option>' caused by dev-tool instrumentation wrapping the option label in a <span>. Harmless in prod but pollutes logs and can cause hydration mismatches — safe to ignore for now, but worth noting."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Add the 'Tap to edit entries' pill next to the member name in Members.jsx member-card-{name} (or update the review request wording). Currently zero such pill is rendered.",
+    "Fix mobile FAB overlap: either (a) hide FAB on MemberDetail route, (b) add bottom padding (pb-24) to the MemberDetail container so last-row pencil clears the FAB & bottom nav, or (c) move the row pencil to the left side / stagger it away from FAB x-range."
+  ],
+  "critical_code_review_comments": [
+    "AddChanda.jsx: userEditedNoRef correctly gates auto-fill of receipt_no — verified 88 sticks across book switches. No issue.",
+    "AddChanda.jsx: in edit mode, receipt_no is loaded from editing.receipt_no but userEditedNoRef starts false; because the auto-fill effect is guarded by `!editing`, this is safe.",
+    "MemberDetail.jsx: correctly hides pencil for voided rows.",
+    "Layout.jsx FAB (fab-add-btn) has z-40 same as bottom nav; on member detail pages the FAB has no reason to appear because /add is 2 taps away via bottom nav — consider hiding it on non-list routes."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested this iteration)", "frontend": "80% (2 of 5 stated features have issues: missing pill + FAB overlay)"},
+  "seed_data_creation": "Created and cleaned up TEST_Regression User chanda entry (id 348eedef-d14d-413a-b787-a2841c7f2ef5). Anita Sharma chanda amount was temporarily changed 3000→3007 and restored back to 3000 via edit flow. Seed data is fully restored.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Book 2 next receipt now = 52 (Prakash Jain at 51 + one voided TEST at 52). Book 1 Monu prefix B1, next receipt = 4. After main agent adds pill and fixes FAB overlap, re-run: (a) verify 'Tap to edit entries' text appears inside each member-card, (b) verify page.click on edit-expense-{id} pencil works WITHOUT scroll/force from a fresh page load on 390x844.",
+  "rca of the issue": "Pill missing: Members.jsx never got the described pill element — likely lost in a diff or the description was aspirational. Grep 'Tap to edit' → 0 hits. FAB overlap: Layout.jsx renders <button data-testid='fab-add-btn' class='md:hidden fixed right-4 z-40 w-14 h-14'> anchored at bottom-right on mobile; MemberDetail's row action pencils are also at the right edge with no bottom padding, so the last row's pencil (y≈774 in a 844px viewport) sits under the FAB and pointer events resolve to the FAB. Fix: either hide FAB on member detail route or add pb-24 to the MemberDetail root <div>."
+}

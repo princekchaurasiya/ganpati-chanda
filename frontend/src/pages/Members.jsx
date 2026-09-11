@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { memberApi, transferApi, ledgerApi, collectorApi } from "@/lib/api";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
 import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -137,7 +137,10 @@ export default function Members() {
                         {m.name.charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-900 truncate">{m.name}</div>
+                        <div className="font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                          {m.name}
+                          <span className="text-[10px] font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-full">Tap to edit entries</span>
+                        </div>
                         <div className="text-xs text-slate-500">{m.count_collections} collections</div>
                       </div>
                     </button>
@@ -245,7 +248,7 @@ export default function Members() {
                       {t.voided && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold status-void">VOID</span>}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}
+                      {t.created_at ? formatDateTimeIST(t.created_at) : formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
@@ -303,7 +306,9 @@ export default function Members() {
                   <div className={`text-sm font-medium text-slate-900 truncate ${e.voided ? "line-through" : ""}`}>
                     {e.from_party} <span className="text-slate-400 mx-1">→</span> {e.to_party}
                   </div>
-                  <div className="text-[11px] text-slate-500">{formatDate(e.date)}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {e.created_at ? formatDateTimeIST(e.created_at) : formatDate(e.date)}
+                  </div>
                 </div>
                 <div className={`font-num font-bold ${
                   e.type === "chanda" ? "text-emerald-700" :

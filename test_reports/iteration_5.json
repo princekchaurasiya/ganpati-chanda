@@ -1,0 +1,30 @@
+{
+  "summary": "Verified BUG fix (ReceiptBookUpdate allows clearing assigned_to via null) and NEW FEATURE (AddChanda auto-selects last-used book and auto-fills next receipt number). Backend and Settings edit work fully. Auto-select on load works. However, changing the receipt book via the dropdown does NOT update the receipt-no input as required by the feature spec.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "AddChanda - change receipt book dropdown",
+        "issue": "When user changes the receipt book via the <select> (data-testid=add-receipt-book-select), the receipt number input (add-receipt-no-input) is NOT updated to the new book's next available number. It keeps the previously auto-filled value (e.g. stays '52' after switching from Book 2 to Book 1 whose next is 4). Root cause in /app/frontend/src/pages/AddChanda.jsx lines 87-94: the effect uses `setReceiptNo((prev) => (prev ? prev : String(r.next)))` which preserves any existing value including the auto-filled one. Comment even says 'Always auto-fill next receipt number when book changes' but implementation doesn't do that. Suggestion: track whether receipt_no was user-edited (e.g. a ref flag) and always overwrite on book change if not user-edited, OR unconditionally setReceiptNo(String(r.next)) on book change.",
+        "affected_selectors": ["[data-testid=\"add-receipt-book-select\"]", "[data-testid=\"add-receipt-no-input\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix AddChanda receipt-no auto-update on receipt-book change (see integration_issues). The auto-select-on-load and initial auto-fill both work; only the on-change behavior regressed / never worked as specified."
+  ],
+  "critical_code_review_comments": [
+    "AddChanda.jsx L87-94: `setReceiptNo((prev) => (prev ? prev : String(r.next)))` cannot distinguish auto-filled vs user-typed values, so changing book never updates receipt_no. Use a ref (userEditedRef) toggled onChange of the input to gate updates.",
+    "server.py update_receipt_book correctly distinguishes required scalars vs nullable fields; consider adding same pattern to other update endpoints if they need to clear nullable fields."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "75%"},
+  "seed_data_creation": "Created and immediately voided one test chanda (TEST_regression, id 593737bc-...) in Book 2 receipt 52 to validate regression. DB restored: Book 2 assigned_to=Shrikant, next=52.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend bug fix for ReceiptBookUpdate (allowing null for assigned_to/note) verified via curl and UI. Auto-select last-used book + auto-fill next receipt number on /add page load verified (Book 2 pre-selected, receipt_no=52 for the current DB state where latest chanda is Book2 #51). Only remaining defect: switching book via dropdown does not update receipt_no because AddChanda useEffect preserves any existing (even auto-filled) value.",
+  "rca of the issue": "AddChanda.jsx uses `setReceiptNo((prev) => (prev ? prev : String(r.next)))` inside the [receiptBookId] effect. On mount the input is empty so it fills correctly; on user changing the book, `prev` is the previous auto-filled number ('52') so the branch keeps it. Fix: introduce `userEditedNoRef` set true only in the input's onChange handler, and in the effect do `if (!userEditedNoRef.current && r.next != null) setReceiptNo(String(r.next))`."
+}

@@ -27,3 +27,21 @@ export const formatDate = (iso) => {
     return iso;
   }
 };
+
+export const formatDateTimeIST = (isoTs) => {
+  if (!isoTs) return "";
+  try {
+    const d = new Date(isoTs);
+    if (isNaN(d.getTime())) return "";
+    // Force Asia/Kolkata regardless of user's device timezone
+    const datePart = d.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric",
+    });
+    const timePart = d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true,
+    });
+    return `${datePart} · ${timePart} IST`;
+  } catch {
+    return "";
+  }
+};

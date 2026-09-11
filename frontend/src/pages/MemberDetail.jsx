@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { memberApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt } from "lucide-react";
+import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil } from "lucide-react";
 
 export default function MemberDetail() {
   const { name } = useParams();
@@ -20,12 +20,16 @@ export default function MemberDetail() {
   const s = data.summary;
 
   return (
-    <div className="space-y-4" data-testid="member-detail-page">
+    <div className="space-y-4 pb-24" data-testid="member-detail-page">
       <div className="flex items-center gap-2">
         <button onClick={() => nav(-1)} className="p-2 rounded-lg hover:bg-slate-100" data-testid="member-back-btn">
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-xl font-bold text-slate-900 truncate" style={{ fontFamily: "Outfit" }}>{name}</h1>
+      </div>
+
+      <div className="rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 text-xs text-teal-800 flex items-center gap-2" data-testid="member-edit-hint">
+        <Pencil size={13} className="shrink-0" /> Galat entry? Kisi bhi row ke pencil icon pe tap karke saare fields (amount, mode, date, etc.) edit karo.
       </div>
 
       {/* Current Held card */}
@@ -79,15 +83,28 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.chandas.map((c) => (
-              <div key={c.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${c.voided ? "line-through" : ""}`}>{c.name}</div>
-                  <div className="text-xs text-slate-500">{formatDate(c.date)} · {c.payment_mode} · {c.status}</div>
+              <div key={c.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-chanda-row-${c.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${c.voided ? "line-through" : ""}`}>{c.name}</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {c.receipt_book_name ? <span className="text-teal-700 font-medium">{c.receipt_book_name} #{c.receipt_no} · </span> : null}
+                    {formatDate(c.date)} · {c.payment_mode} · {c.status}
+                  </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="font-num font-bold text-slate-900">{formatINR(c.received_amount)}</div>
                   {c.status === "Pending" && <div className="text-[10px] text-orange-600">promised {formatINR(c.amount)}</div>}
                 </div>
+                {!c.voided && (
+                  <button
+                    onClick={() => nav("/add", { state: { entry: c } })}
+                    data-testid={`edit-chanda-${c.id}`}
+                    title="Edit chanda"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -103,12 +120,22 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.transfers_out.map((t) => (
-              <div key={t.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${t.voided ? "line-through" : ""}`}>→ {t.to_member}</div>
-                  <div className="text-xs text-slate-500">{formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}</div>
+              <div key={t.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-trf-out-row-${t.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${t.voided ? "line-through" : ""}`}>→ {t.to_member}</div>
+                  <div className="text-xs text-slate-500 truncate">{formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}</div>
                 </div>
-                <div className="font-num font-bold text-orange-700">{formatINR(t.amount)}</div>
+                <div className="font-num font-bold text-orange-700 shrink-0">{formatINR(t.amount)}</div>
+                {!t.voided && (
+                  <button
+                    onClick={() => nav("/transfer/add", { state: { entry: t } })}
+                    data-testid={`edit-transfer-${t.id}`}
+                    title="Edit transfer"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -124,12 +151,22 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.transfers_in.map((t) => (
-              <div key={t.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${t.voided ? "line-through" : ""}`}>← {t.from_member}</div>
-                  <div className="text-xs text-slate-500">{formatDate(t.date)}</div>
+              <div key={t.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-trf-in-row-${t.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${t.voided ? "line-through" : ""}`}>← {t.from_member}</div>
+                  <div className="text-xs text-slate-500 truncate">{formatDate(t.date)}</div>
                 </div>
-                <div className="font-num font-bold text-blue-700">{formatINR(t.amount)}</div>
+                <div className="font-num font-bold text-blue-700 shrink-0">{formatINR(t.amount)}</div>
+                {!t.voided && (
+                  <button
+                    onClick={() => nav("/transfer/add", { state: { entry: t } })}
+                    data-testid={`edit-transfer-in-${t.id}`}
+                    title="Edit transfer"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -145,15 +182,25 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.expenses.map((e) => (
-              <div key={e.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${e.voided ? "line-through" : ""}`}>{e.description}</div>
-                  <div className="text-xs text-slate-500">{formatDate(e.date)}{e.vendor ? ` · ${e.vendor}` : ""}</div>
+              <div key={e.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-exp-row-${e.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${e.voided ? "line-through" : ""}`}>{e.description}</div>
+                  <div className="text-xs text-slate-500 truncate">{formatDate(e.date)}{e.vendor ? ` · ${e.vendor}` : ""}</div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="font-num font-bold text-red-700">-{formatINR(e.amount_paid)}</div>
                   {e.total_bill > e.amount_paid && <div className="text-[10px] text-slate-500">bill {formatINR(e.total_bill)}</div>}
                 </div>
+                {!e.voided && (
+                  <button
+                    onClick={() => nav("/expenses/add", { state: { entry: e } })}
+                    data-testid={`edit-expense-${e.id}`}
+                    title="Edit expense"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -168,12 +215,22 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.reimbursements_in.map((r) => (
-              <div key={r.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${r.voided ? "line-through" : ""}`}>from {r.paid_by}</div>
-                  <div className="text-xs text-slate-500">{formatDate(r.date)} · {r.payment_mode}{r.note ? ` · ${r.note}` : ""}</div>
+              <div key={r.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-reimb-in-row-${r.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${r.voided ? "line-through" : ""}`}>from {r.paid_by}</div>
+                  <div className="text-xs text-slate-500 truncate">{formatDate(r.date)} · {r.payment_mode}{r.note ? ` · ${r.note}` : ""}</div>
                 </div>
-                <div className="font-num font-bold text-emerald-700">+{formatINR(r.amount)}</div>
+                <div className="font-num font-bold text-emerald-700 shrink-0">+{formatINR(r.amount)}</div>
+                {!r.voided && (
+                  <button
+                    onClick={() => nav("/reimburse/add", { state: { entry: r } })}
+                    data-testid={`edit-reimb-in-${r.id}`}
+                    title="Edit reimbursement"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -189,12 +246,22 @@ export default function MemberDetail() {
           </div>
           <div className="divide-y divide-slate-100">
             {data.reimbursements_out.map((r) => (
-              <div key={r.id} className="py-2 flex items-center justify-between text-sm">
-                <div>
-                  <div className={`font-medium text-slate-900 ${r.voided ? "line-through" : ""}`}>to {r.to_member}</div>
-                  <div className="text-xs text-slate-500">{formatDate(r.date)} · {r.payment_mode}{r.note ? ` · ${r.note}` : ""}</div>
+              <div key={r.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-reimb-out-row-${r.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`font-medium text-slate-900 truncate ${r.voided ? "line-through" : ""}`}>to {r.to_member}</div>
+                  <div className="text-xs text-slate-500 truncate">{formatDate(r.date)} · {r.payment_mode}{r.note ? ` · ${r.note}` : ""}</div>
                 </div>
-                <div className="font-num font-bold text-orange-700">-{formatINR(r.amount)}</div>
+                <div className="font-num font-bold text-orange-700 shrink-0">-{formatINR(r.amount)}</div>
+                {!r.voided && (
+                  <button
+                    onClick={() => nav("/reimburse/add", { state: { entry: r } })}
+                    data-testid={`edit-reimb-out-${r.id}`}
+                    title="Edit reimbursement"
+                    className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
