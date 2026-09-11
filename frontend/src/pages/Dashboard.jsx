@@ -57,17 +57,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5" data-testid="dashboard-page">
-      <div className={`card-elevated p-5 sm:p-6 ${stats.balance >= 0 ? "bg-gradient-to-br from-teal-50 via-white to-emerald-50" : "bg-gradient-to-br from-orange-50 via-white to-red-50"}`} data-testid="dashboard-balance-card">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-          <Scale size={16} /> Remaining Balance (Available Cash)
+      <button type="button" onClick={() => setModalKind("balance-tally")}
+        data-testid="dashboard-balance-card"
+        className={`card-elevated p-5 sm:p-6 text-left w-full hover:brightness-95 active:scale-[0.995] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 ${stats.balance >= 0 ? "bg-gradient-to-br from-teal-50 via-white to-emerald-50" : "bg-gradient-to-br from-orange-50 via-white to-red-50"}`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Scale size={16} /> Remaining Balance (Available Cash)
+          </div>
+          <ChevronRight size={16} className="text-slate-400" />
         </div>
         <div className={`mt-1 text-4xl sm:text-5xl font-extrabold font-num tracking-tight ${stats.balance >= 0 ? "text-teal-800" : "text-red-700"}`} data-testid="stat-balance">
           {formatINR(stats.balance)}
         </div>
         <div className="mt-1 text-xs text-slate-600 font-num">
-          Received {formatINR(ch.total_received)} − Paid {formatINR(ex.total_paid)}
+          Received {formatINR(ch.total_received)} − Paid {formatINR(ex.total_paid)} · <span className="text-teal-700 font-medium">tap to tally</span>
         </div>
-      </div>
+      </button>
 
       <section className="card-elevated p-5" data-testid="chanda-section">
         <div className="flex items-center justify-between mb-3">
@@ -369,6 +374,117 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
         </div>
       ),
       deepLink: `/members/${encodeURIComponent(name)}`,
+    };
+  }
+
+  if (!conf && kind === "balance-tally") {
+    // Aggregate income: chanda received grouped by payment mode
+    const received = active.filter((c) => c.status === "Collected");
+    const receivedTotal = received.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
+    const paidTotal = activeExp.reduce((s, e) => s + (e.group_funds_used || 0), 0);
+    const personalTotal = activeExp.reduce((s, e) => s + (e.personal_contribution || 0), 0);
+    const billTotal = activeExp.reduce((s, e) => s + (e.total_bill || 0), 0);
+    const balance = receivedTotal - paidTotal;
+    const pendingChanda = active.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
+    const payable = billTotal - activeExp.reduce((s, e) => s + (e.amount_paid || 0), 0);
+
+    const byMode = {};
+    received.forEach((c) => {
+      const k = c.payment_mode || "-";
+      if (!byMode[k]) byMode[k] = { count: 0, total: 0 };
+      byMode[k].count += 1;
+      byMode[k].total += c.received_amount || c.amount || 0;
+    });
+    const byCat = {};
+    activeExp.forEach((e) => {
+      const k = e.category || "Other";
+      if (!byCat[k]) byCat[k] = { count: 0, total: 0 };
+      byCat[k].count += 1;
+      byCat[k].total += e.amount_paid || 0;
+    });
+
+    conf = {
+      title: "Balance Tally (Kaha se kaha)",
+      body: () => (
+        <div className="space-y-3 p-1">
+          <div className={`rounded-xl p-4 ${balance >= 0 ? "bg-emerald-50 border border-emerald-100" : "bg-red-50 border border-red-100"}`} data-testid="tally-formula">
+            <div className="text-xs text-slate-600 font-medium mb-1">Formula</div>
+            <div className="font-num text-sm">
+              <span className="text-emerald-700 font-bold">{formatINR(receivedTotal)}</span>
+              <span className="text-slate-500"> (Received)</span>
+              <span className="mx-1">−</span>
+              <span className="text-red-700 font-bold">{formatINR(paidTotal)}</span>
+              <span className="text-slate-500"> (Group Paid)</span>
+              <span className="mx-1">=</span>
+              <span className={`font-extrabold text-lg ${balance >= 0 ? "text-emerald-800" : "text-red-800"}`}>{formatINR(balance)}</span>
+            </div>
+            {personalTotal > 0.01 && (
+              <div className="text-[11px] text-amber-700 mt-1">
+                + Personal contributions Rs.{Math.round(personalTotal)} used (group owes members — reimbursement due)
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 overflow-hidden">
+            <div className="px-3 py-2 flex items-center justify-between border-b border-emerald-100">
+              <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">Income (Received chanda)</div>
+              <div className="font-num font-bold text-emerald-700">+{formatINR(receivedTotal)}</div>
+            </div>
+            <div className="divide-y divide-emerald-100/70">
+              {Object.entries(byMode).sort((a, b) => b[1].total - a[1].total).map(([m, d]) => (
+                <button key={m} type="button" onClick={() => setModalKind(`mode:${m}`)}
+                  data-testid={`tally-income-${m.replace(/\s/g,'-').toLowerCase()}`}
+                  className="w-full px-3 py-2 flex items-center gap-2 hover:bg-emerald-100/50 text-left">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-sm font-medium text-slate-800 flex-1 truncate">{m}</span>
+                  <span className="text-[11px] text-slate-500">{d.count}</span>
+                  <span className="font-num font-bold text-emerald-700">+{formatINR(d.total)}</span>
+                  <ChevronRight size={13} className="text-slate-400" />
+                </button>
+              ))}
+            </div>
+            {pendingChanda > 0.01 && (
+              <div className="px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-emerald-100 flex items-center justify-between">
+                <span>+ Pending (abhi tak nahi mila)</span>
+                <span className="font-num font-bold">{formatINR(pendingChanda)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-red-50/60 border border-red-100 overflow-hidden">
+            <div className="px-3 py-2 flex items-center justify-between border-b border-red-100">
+              <div className="text-xs font-semibold text-red-800 uppercase tracking-wide">Expenses (Group cash paid)</div>
+              <div className="font-num font-bold text-red-700">-{formatINR(paidTotal)}</div>
+            </div>
+            <div className="divide-y divide-red-100/70">
+              {Object.entries(byCat).sort((a, b) => b[1].total - a[1].total).map(([c, d]) => (
+                <div key={c} className="w-full px-3 py-2 flex items-center gap-2" data-testid={`tally-cat-${c.replace(/\s/g,'-').toLowerCase()}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c}</span>
+                  <span className="text-[11px] text-slate-500">{d.count}</span>
+                  <span className="font-num font-bold text-red-700">-{formatINR(d.total)}</span>
+                </div>
+              ))}
+            </div>
+            {payable > 0.01 && (
+              <div className="px-3 py-1.5 bg-amber-50 text-[11px] text-amber-800 border-t border-red-100 flex items-center justify-between">
+                <span>+ Bakaya bills (abhi tak nahi diya)</span>
+                <span className="font-num font-bold">{formatINR(payable)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className={`rounded-xl p-3 flex items-center justify-between ${balance >= 0 ? "bg-teal-600" : "bg-red-600"} text-white`}>
+            <div className="text-sm font-medium">Available Cash (Balance)</div>
+            <div className="font-num text-xl font-extrabold" data-testid="tally-balance">{formatINR(balance)}</div>
+          </div>
+
+          <div className="text-[10px] text-slate-500 text-center px-2">
+            Note: In-group transfers (member↔member) don't change the group's total balance — they just move cash between members.
+          </div>
+        </div>
+      ),
+      deepLink: "/expenses",
     };
   }
 
