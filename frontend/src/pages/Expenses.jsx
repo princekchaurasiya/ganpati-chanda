@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet } from "lucide-react";
+import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 
@@ -37,6 +37,9 @@ export default function Expenses() {
   const [showVoided, setShowVoided] = useState(false);
   const [confirmVoid, setConfirmVoid] = useState(null);
   const [catDetail, setCatDetail] = useState(null); // category name string
+  const [payerFocus, setPayerFocus] = useState(null); // drill-down: payer within category
+
+  useEffect(() => { setPayerFocus(null); }, [catDetail]);
 
   const load = async () => {
     setLoading(true);
@@ -306,45 +309,72 @@ export default function Expenses() {
         const byPayer = {};
         info.entries.forEach((e) => {
           const key = e.paid_by || "-";
-          if (!byPayer[key]) byPayer[key] = { count: 0, total: 0 };
+          if (!byPayer[key]) byPayer[key] = { count: 0, total: 0, entries: [] };
           byPayer[key].count += 1;
           byPayer[key].total += e.amount_paid || 0;
+          byPayer[key].entries.push(e);
         });
+        const visibleEntries = payerFocus ? (byPayer[payerFocus]?.entries || []) : info.entries;
+        const visibleTotal = payerFocus ? (byPayer[payerFocus]?.total || 0) : info.total;
         return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setCatDetail(null)}>
             <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} data-testid="exp-cat-modal">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cc.bg} ${cc.text}`}>{catDetail}</span>
-                  <div className="text-xs text-slate-500">{info.count} {info.count === 1 ? "entry" : "entries"}</div>
+                  {payerFocus && (
+                    <button onClick={() => setPayerFocus(null)} data-testid="exp-cat-back-btn"
+                      className="w-7 h-7 -ml-1 rounded-lg hover:bg-slate-100 flex items-center justify-center shrink-0">
+                      <ArrowLeft size={15} />
+                    </button>
+                  )}
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cc.bg} ${cc.text} shrink-0`}>{catDetail}</span>
+                  {payerFocus ? (
+                    <>
+                      <span className="text-slate-400 text-xs shrink-0">›</span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">{payerFocus}</span>
+                      <div className="text-[11px] text-slate-500 shrink-0">· {visibleEntries.length} {visibleEntries.length === 1 ? "entry" : "entries"}</div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-slate-500">{info.count} {info.count === 1 ? "entry" : "entries"}</div>
+                  )}
                 </div>
                 <button onClick={() => setCatDetail(null)} data-testid="exp-cat-modal-close" className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
                   <X size={16} />
                 </button>
               </div>
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-                <div className="text-sm text-slate-500">Total Paid</div>
-                <div className="font-num font-bold text-xl text-red-700">-{formatINR(info.total)}</div>
+                <div className="text-sm text-slate-500">{payerFocus ? `${payerFocus} ka contribution` : "Total Paid"}</div>
+                <div className="font-num font-bold text-xl text-red-700" data-testid="exp-cat-total">-{formatINR(visibleTotal)}</div>
               </div>
 
               <div className="overflow-y-auto flex-1">
-                <div className="px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Kisne kharcha kiya</div>
-                <div className="divide-y divide-slate-50">
-                  {Object.entries(byPayer).sort((a, b) => b[1].total - a[1].total).map(([payer, d]) => (
-                    <div key={payer} className="px-4 py-2 flex items-center gap-3" data-testid={`exp-cat-payer-${payer}`}>
-                      <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">{payer.charAt(0)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-900 truncate">{payer}</div>
-                        <div className="text-[11px] text-slate-500">{d.count} {d.count === 1 ? "entry" : "entries"}</div>
-                      </div>
-                      <div className="font-num font-bold text-red-700 shrink-0">-{formatINR(d.total)}</div>
+                {!payerFocus && (
+                  <>
+                    <div className="px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Kisne kharcha kiya <span className="normal-case tracking-normal text-slate-400 font-normal">· tap for breakdown</span></div>
+                    <div className="divide-y divide-slate-50">
+                      {Object.entries(byPayer).sort((a, b) => b[1].total - a[1].total).map(([payer, d]) => (
+                        <button key={payer} type="button"
+                          onClick={() => setPayerFocus(payer)}
+                          data-testid={`exp-cat-payer-${payer}`}
+                          className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-slate-50 active:bg-slate-100">
+                          <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">{payer.charAt(0)}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-slate-900 truncate">{payer}</div>
+                            <div className="text-[11px] text-slate-500">{d.count} {d.count === 1 ? "entry" : "entries"}</div>
+                          </div>
+                          <div className="font-num font-bold text-red-700 shrink-0">-{formatINR(d.total)}</div>
+                          <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
 
-                <div className="px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-1">Entries</div>
+                <div className={`px-4 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide ${!payerFocus ? "border-t border-slate-100 mt-1" : ""}`}>
+                  {payerFocus ? `${payerFocus} ki entries` : "Entries"}
+                </div>
                 <div className="divide-y divide-slate-50 pb-4">
-                  {info.entries.map((e) => (
+                  {visibleEntries.map((e) => (
                     <div key={e.id} className="px-4 py-2.5 flex items-start gap-3" data-testid={`exp-cat-entry-${e.id}`}>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-slate-900 text-sm truncate">{e.description}</div>
@@ -352,6 +382,9 @@ export default function Expenses() {
                           {e.vendor ? <span>{e.vendor} · </span> : null}
                           Paid by <span className="font-medium text-slate-700">{e.paid_by}</span> · {e.payment_mode} · {formatDate(e.date)}
                         </div>
+                        {(e.personal_contribution || 0) > 0.01 && (
+                          <div className="text-[11px] text-amber-700 mt-0.5">Personal Rs.{Math.round(e.personal_contribution)} (reimburse due)</div>
+                        )}
                         {e.note && <div className="text-[11px] text-slate-400 italic truncate">"{e.note}"</div>}
                       </div>
                       <div className="text-right shrink-0">
