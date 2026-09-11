@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { memberApi, transferApi, ledgerApi, collectorApi } from "@/lib/api";
 import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
-import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw } from "lucide-react";
+import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
@@ -17,6 +17,9 @@ export default function Members() {
   const [confirmVoid, setConfirmVoid] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null); // {collector, currentName, newName}
   const [confirmDeleteMember, setConfirmDeleteMember] = useState(null); // {collector, memberSummary}
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [savingMember, setSavingMember] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -61,6 +64,23 @@ export default function Members() {
     }
   };
 
+  const saveNewMember = async () => {
+    const nm = (newMemberName || "").trim();
+    if (!nm) return toast.error("Name required");
+    setSavingMember(true);
+    try {
+      await collectorApi.create(nm);
+      toast.success(`${nm} added`);
+      setShowAddMember(false);
+      setNewMemberName("");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to add");
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
   const doDeleteMember = async () => {
     if (!confirmDeleteMember) return;
     const { collector, memberSummary } = confirmDeleteMember;
@@ -82,15 +102,24 @@ export default function Members() {
 
   return (
     <div className="space-y-4" data-testid="members-page">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Members & Ledger</h1>
-        <button
-          onClick={() => nav("/transfer/add")}
-          data-testid="members-transfer-btn"
-          className="h-10 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 text-sm"
-        >
-          <ArrowRightLeft size={16} /> Transfer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowAddMember(true); setNewMemberName(""); }}
+            data-testid="members-add-btn"
+            className="h-10 px-3 rounded-xl bg-white border border-teal-600 text-teal-700 hover:bg-teal-50 font-semibold flex items-center gap-1 text-sm"
+          >
+            <UserPlus size={16} /> Add Member
+          </button>
+          <button
+            onClick={() => nav("/transfer/add")}
+            data-testid="members-transfer-btn"
+            className="h-10 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 text-sm"
+          >
+            <ArrowRightLeft size={16} /> Transfer
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1" data-testid="members-tabs">
@@ -322,6 +351,38 @@ export default function Members() {
             ))}
           </div>
         )
+      )}
+
+      {/* Add member modal */}
+      {showAddMember && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setShowAddMember(false)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()} data-testid="add-member-modal">
+            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+              <UserPlus size={18} className="text-teal-700" /> Add New Member
+            </h3>
+            <p className="text-xs text-slate-500 mb-3">Ye member Kisko-Diya dropdown me select karne ke liye available ho jayega.</p>
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveNewMember(); if (e.key === "Escape") setShowAddMember(false); }}
+              autoFocus
+              placeholder="Member ka naam"
+              data-testid="add-member-input"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base mb-4"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowAddMember(false)} data-testid="add-member-cancel"
+                className="flex-1 h-11 rounded-xl border border-slate-300 font-medium flex items-center justify-center gap-1">
+                <X size={16} /> Cancel
+              </button>
+              <button onClick={saveNewMember} disabled={savingMember} data-testid="add-member-save"
+                className="flex-1 h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-1 disabled:opacity-60">
+                <Plus size={16} /> {savingMember ? "Adding..." : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Rename member modal */}

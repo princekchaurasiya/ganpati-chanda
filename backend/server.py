@@ -484,7 +484,7 @@ async def create_collector(payload: CollectorCreate):
         raise HTTPException(400, "Name is required")
     existing = await db.collectors.find_one({"name": name}, {"_id": 0})
     if existing:
-        return existing
+        raise HTTPException(400, f"A collector named '{name}' already exists")
     collector = Collector(name=name)
     await db.collectors.insert_one(collector.model_dump())
     return collector

@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 9 retest of Chanda Register PWA. All three fixes are confirmed working: (1) Add Member modal renders correctly and full CRUD flow works (create, list, delete cleanup). (2) POST /api/collectors correctly returns 400 with 'already exists' for duplicate names. (3) Pooja Iyer is present in collectors list. However, one intermediate data issue was observed: 'Monu' was MISSING from collectors when tests started, and got re-created by the duplicate-rejection test (which received 200 because Monu didn't exist yet, then 400 afterwards). Backend 7/7 pytest passing after Monu re-added. Frontend UI flows (add valid, empty validation, duplicate rejection toast, Enter-to-submit, Escape-to-close) all PASS. Regression checks pass (Tap-to-edit pill, tabs, MemberDetail FAB non-overlap, receipt books B2 95-100 & B4 151-170, no Book 3).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/collectors", "issue": "'Monu' was missing from the collectors list at start of this iteration — apparently deleted by the previous fix that re-added Pooja Iyer. The duplicate-rejection test accidentally re-created it; if the test hadn't run, the app would still be missing Monu. Recommend seeding all 11 canonical collectors deterministically."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_9.py",
+    "/app/test_reports/pytest/iter9.xml"
+  ],
+  "action_items": [
+    "MEDIUM: Investigate why 'Monu' was missing when retest started (11 collectors expected, only 10 present until my test re-added it). Add an idempotent seed/data-fix so all 11 canonical collectors are guaranteed present.",
+    "LOW (already noted iter8): reconcile chanda count 66 vs earlier expected 64 with product owner — not blocking."
+  ],
+  "critical_code_review_comments": [
+    "Members.jsx Escape handler is scoped to the input onKeyDown; after clicking Save (error path) focus moves to the button and Escape then does nothing. Works fine when input is focused (verified). Consider a document-level keydown listener for robustness, but this is a nit — not blocking.",
+    "server.py has grown to ~1100 lines; splitting into routers per resource (chanda, collectors, expenses, transfers, reimbursements, receipt_books, dashboard) would help maintainability (>700 line threshold).",
+    "POST /api/collectors now correctly returns 400 on duplicate — good. Consider using HTTP 409 Conflict as the more idiomatic status for duplicate resources; not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_9.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 pytest passing after Monu auto-re-added; duplicate rejection working)", "frontend": "100% for Add Member flows (open, valid create, empty validation, duplicate rejection toast, Enter submit, Escape close, delete cleanup). Regression checks all pass."},
+  "test_credentials": "None required",
+  "seed_data_creation": "Created QA_TEST_ADD_NEW and QA_TEST_ENTER via UI, then DELETEd via /api/collectors/{id}. Duplicate-rejection test also accidentally re-created 'Monu' which was missing at start of run — left in DB as it is a canonical collector.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All three iteration_8 fixes verified. If retesting: cleanup any leftover QA_TEST_* collectors via DELETE /api/collectors/{id}. Add Member modal testids: add-member-modal, add-member-input, add-member-cancel, add-member-save. Duplicate check message: 'A collector named X already exists' returned as detail on 400. Backend seed data still has the Monu-missing risk — worth a canonical seed pass.",
+  "rca of the issue": "Iter8 fixes verified: modal JSX now present at line 357 of Members.jsx, backend raises HTTPException(400) for duplicate collectors. The only side finding is that 'Monu' was absent from the collector list at start (probably deleted while re-adding Pooja Iyer), but my duplicate-rejection test inadvertently recreated it. Recommend ensuring canonical seed data covers all 11 members deterministically."
+}
