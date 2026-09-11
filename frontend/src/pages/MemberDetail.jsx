@@ -19,7 +19,13 @@ export default function MemberDetail() {
     ]).then(([detail, allChandas]) => {
       setData(detail);
       const decoded = decodeURIComponent(name).toLowerCase().trim();
-      setDonations((allChandas || []).filter((c) => (c.name || "").toLowerCase().trim() === decoded));
+      setDonations((allChandas || []).filter((c) => {
+        if (c.voided) return false;
+        if ((c.donor_member || "").toLowerCase().trim() === decoded) return true;
+        // Exact match on name, but only if not already claimed by another donor_member
+        if ((c.name || "").toLowerCase().trim() === decoded && !c.donor_member) return true;
+        return false;
+      }));
     }).finally(() => setLoading(false));
   }, [name]);
 

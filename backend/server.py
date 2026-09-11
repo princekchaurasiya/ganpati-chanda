@@ -43,6 +43,7 @@ class ChandaBase(BaseModel):
     receipt_no: Optional[int] = None
     note: Optional[str] = None
     event: str = "Ganpati Mandap"
+    donor_member: Optional[str] = None
 
 
 class ChandaCreate(BaseModel):
@@ -59,6 +60,7 @@ class ChandaCreate(BaseModel):
     receipt_no: Optional[int] = None
     note: Optional[str] = None
     event: Optional[str] = "Ganpati Mandap"
+    donor_member: Optional[str] = None
 
 
 class ChandaUpdate(BaseModel):
@@ -76,6 +78,7 @@ class ChandaUpdate(BaseModel):
     note: Optional[str] = None
     voided: Optional[bool] = None
     event: Optional[str] = None
+    donor_member: Optional[str] = None
 
 
 class Chanda(ChandaBase):
@@ -201,6 +204,36 @@ class ReimbursementUpdate(BaseModel):
 
 
 class Reimbursement(ReimbursementBase):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    voided: bool = False
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class EventTransferBase(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    from_event: str
+    to_event: str
+    amount: float
+    date: str
+    note: Optional[str] = None
+
+
+class EventTransferCreate(EventTransferBase):
+    pass
+
+
+class EventTransferUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    from_event: Optional[str] = None
+    to_event: Optional[str] = None
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    note: Optional[str] = None
+    voided: Optional[bool] = None
+
+
+class EventTransfer(EventTransferBase):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     voided: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -763,6 +796,50 @@ async def delete_reimbursement(reimb_id: str):
     return {"ok": True}
 
 
+# ============= Event Transfer Routes =============
+@api_router.get("/event-transfers", response_model=List[EventTransfer])
+async def list_event_transfers():
+    return await db.event_transfers.find({}, {"_id": 0}).sort("date", -1).to_list(1000)
+
+
+@api_router.post("/event-transfers", response_model=EventTransfer)
+async def create_event_transfer(payload: EventTransferCreate):
+    data = payload.model_dump()
+    if data["amount"] <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    if data["from_event"].strip() == data["to_event"].strip():
+        raise HTTPException(400, "From and To events must differ")
+    if not data["from_event"].strip() or not data["to_event"].strip():
+        raise HTTPException(400, "Events cannot be empty")
+    et = EventTransfer(**data)
+    await db.event_transfers.insert_one(et.model_dump())
+    return et
+
+
+@api_router.put("/event-transfers/{et_id}", response_model=EventTransfer)
+async def update_event_transfer(et_id: str, payload: EventTransferUpdate):
+    existing = await db.event_transfers.find_one({"id": et_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Event transfer not found")
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    merged = {**existing, **update_data}
+    if merged["from_event"] == merged["to_event"]:
+        raise HTTPException(400, "From and To events must differ")
+    if merged["amount"] <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.event_transfers.update_one({"id": et_id}, {"$set": update_data})
+    return await db.event_transfers.find_one({"id": et_id}, {"_id": 0})
+
+
+@api_router.delete("/event-transfers/{et_id}")
+async def delete_event_transfer(et_id: str):
+    res = await db.event_transfers.delete_one({"id": et_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Event transfer not found")
+    return {"ok": True}
+
+
 # ============= Member Summary =============
 async def build_member_summaries():
     collectors = await db.collectors.find({}, {"_id": 0}).to_list(1000)
@@ -930,23 +1007,32 @@ async def dashboard():
 
     # Event-wise breakdown (Ganpati Mandap vs Dahi Handi etc.)
     by_event = {}
+    def _ev_init():
+        return {"received": 0, "promised": 0, "pending": 0, "count": 0,
+                "expense_paid": 0, "expense_bill": 0, "expense_count": 0,
+                "contributed_out": 0, "covered_in": 0}
     for c in chandas:
         ev = c.get("event") or "Ganpati Mandap"
-        b = by_event.setdefault(ev, {"received": 0, "promised": 0, "pending": 0, "count": 0,
-                                     "expense_paid": 0, "expense_bill": 0, "expense_count": 0})
+        b = by_event.setdefault(ev, _ev_init())
         b["received"] += c.get("received_amount", 0)
         b["promised"] += c.get("amount", 0)
         b["pending"] += c.get("amount", 0) - c.get("received_amount", 0)
         b["count"] += 1
     for e in expenses:
         ev = e.get("event") or "Ganpati Mandap"
-        b = by_event.setdefault(ev, {"received": 0, "promised": 0, "pending": 0, "count": 0,
-                                     "expense_paid": 0, "expense_bill": 0, "expense_count": 0})
+        b = by_event.setdefault(ev, _ev_init())
         b["expense_paid"] += e.get("amount_paid", 0)
         b["expense_bill"] += e.get("total_bill", 0)
         b["expense_count"] += 1
+    # Fold in cross-event fund transfers (Ganpati fund covers Dahi Handi loss, etc.)
+    event_transfers = await db.event_transfers.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(1000)
+    for t in event_transfers:
+        src = by_event.setdefault(t["from_event"], _ev_init())
+        src["contributed_out"] += t["amount"]
+        dst = by_event.setdefault(t["to_event"], _ev_init())
+        dst["covered_in"] += t["amount"]
     for ev, b in by_event.items():
-        b["net"] = b["received"] - b["expense_paid"]
+        b["net"] = b["received"] - b["expense_paid"] - b["contributed_out"] + b["covered_in"]
 
     cash_held = total_received - total_group_funds_used - total_reimbursed
     remaining_balance = cash_held
@@ -971,6 +1057,7 @@ async def dashboard():
             "count": len(expenses),
             "by_category": by_expense_category,
         },
+        "event_transfers": event_transfers,
         "by_event": by_event,
         "transfers": {"count": len(transfers), "total_amount": sum(t["amount"] for t in transfers)},
         "reimbursements": {

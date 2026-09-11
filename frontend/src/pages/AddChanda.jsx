@@ -25,6 +25,7 @@ export default function AddChanda() {
   const [receiptBookId, setReceiptBookId] = useState(editing?.receipt_book_id || "");
   const [receiptNo, setReceiptNo] = useState(editing?.receipt_no ? String(editing.receipt_no) : "");
   const [event, setEvent] = useState(editing?.event || DEFAULT_EVENT);
+  const [donorMember, setDonorMember] = useState(editing?.donor_member || "");
   const [collectors, setCollectors] = useState([]);
   const [books, setBooks] = useState([]);
   const [availableEvents, setAvailableEvents] = useState(mergeEvents([editing?.event].filter(Boolean)));
@@ -127,6 +128,7 @@ export default function AddChanda() {
         receipt_book_id: receiptBookId || null,
         receipt_no: receiptNo ? Number(receiptNo) : null,
         event: event || DEFAULT_EVENT,
+        donor_member: donorMember || null,
       };
       if (editing) {
         await chandaApi.update(editing.id, payload);
@@ -184,6 +186,29 @@ export default function AddChanda() {
             data-testid="add-mobile-input"
             className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base"
           />
+        </div>
+
+        {/* Donor Team Member link (optional) */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <User size={15} /> Ye donor group member hai? <span className="text-xs font-normal text-slate-500">(optional)</span>
+          </label>
+          <select
+            value={donorMember}
+            onChange={(e) => setDonorMember(e.target.value)}
+            data-testid="add-donor-member-select"
+            className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white"
+          >
+            <option value="">-- Bahar ka donor (link nahi) --</option>
+            {collectors.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          {donorMember && (
+            <div className="mt-1 text-[11px] text-teal-700" data-testid="add-donor-member-hint">
+              Ye entry <strong>{donorMember}</strong> ki profile me "Donations Given" me dikhegi. Cash abhi bhi collector ({collector || "?"}) ke paas hai.
+            </div>
+          )}
         </div>
 
         {/* Event / Purpose */}

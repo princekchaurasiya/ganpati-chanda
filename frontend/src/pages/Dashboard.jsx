@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi } from "@/lib/api";
+import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi, eventTransferApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft, CalendarDays } from "lucide-react";
+import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft, CalendarDays, Repeat, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { colorForEvent } from "@/lib/events";
 
@@ -202,30 +202,49 @@ export default function Dashboard() {
           <div className="space-y-2">
             {Object.entries(stats.by_event || {}).sort((a, b) => b[1].received - a[1].received).map(([ev, d]) => {
               const cc = colorForEvent(ev);
+              const shortfall = d.net < -0.01 ? -d.net : 0;
               return (
-                <button
-                  type="button"
-                  key={ev}
-                  onClick={() => setModalKind(`event:${ev}`)}
-                  data-testid={`event-row-${ev.replace(/\s+/g,'-').toLowerCase()}`}
-                  className={`w-full ${cc.bg} rounded-xl px-3 py-2.5 flex items-center gap-3 hover:brightness-95 active:scale-[0.99] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 text-left`}
-                >
-                  <span className={`w-2.5 h-2.5 rounded-full ${cc.dot} shrink-0`} />
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-sm font-bold ${cc.text} truncate`}>{ev}</div>
-                    <div className="text-[10px] text-slate-600 font-num">
-                      Received {formatINR(d.received)} · Expenses {formatINR(d.expense_paid)} · Net{" "}
-                      <span className={d.net >= 0 ? "text-emerald-700 font-bold" : "text-red-700 font-bold"}>
-                        {d.net >= 0 ? "+" : ""}{formatINR(d.net)}
-                      </span>
+                <div key={ev} className={`${cc.bg} rounded-xl overflow-hidden`}>
+                  <button
+                    type="button"
+                    onClick={() => setModalKind(`event:${ev}`)}
+                    data-testid={`event-row-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:brightness-95 active:scale-[0.99] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 text-left"
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${cc.dot} shrink-0`} />
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-bold ${cc.text} truncate`}>{ev}</div>
+                      <div className="text-[10px] text-slate-600 font-num">
+                        Received {formatINR(d.received)}
+                        {d.covered_in > 0.01 && <span className="text-teal-700"> +{formatINR(d.covered_in)} covered</span>}
+                        {" · "}Expenses {formatINR(d.expense_paid)}
+                        {d.contributed_out > 0.01 && <span className="text-orange-700"> +{formatINR(d.contributed_out)} shared</span>}
+                        {" · Net "}
+                        <span className={d.net >= 0 ? "text-emerald-700 font-bold" : "text-red-700 font-bold"}>
+                          {d.net >= 0 ? "+" : ""}{formatINR(d.net)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className={`text-lg font-extrabold font-num ${cc.text}`}>{formatINR(d.received)}</div>
-                    <div className="text-[10px] text-slate-500">{d.count} chanda · {d.expense_count} bill{d.expense_count === 1 ? "" : "s"}</div>
-                  </div>
-                  <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                </button>
+                    <div className="text-right shrink-0">
+                      <div className={`text-lg font-extrabold font-num ${cc.text}`}>{formatINR(d.received)}</div>
+                      <div className="text-[10px] text-slate-500">{d.count} chanda · {d.expense_count} bill{d.expense_count === 1 ? "" : "s"}</div>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                  </button>
+                  {shortfall > 0.01 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setModalKind(`cover-loss:${ev}`); }}
+                      data-testid={`cover-loss-btn-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                      className="w-full px-3 py-1.5 bg-white/70 border-t border-red-100 flex items-center justify-between hover:bg-white text-left text-[11px]"
+                    >
+                      <span className="flex items-center gap-1 text-red-700 font-semibold">
+                        <Repeat size={11} /> Cover {formatINR(shortfall)} loss from another event
+                      </span>
+                      <ChevronRight size={12} className="text-slate-400" />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -310,6 +329,7 @@ export default function Dashboard() {
           expenses={expenses}
           reimbs={reimbs}
           members={members}
+          stats={stats}
           reload={load}
         />
       )}
@@ -348,7 +368,7 @@ function MiniStat({ label, value, sub, color, testid, onClick }) {
   return <div className={base} data-testid={testid}>{body}</div>;
 }
 
-function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimbs, members, reload }) {
+function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimbs, members, stats, reload }) {
   const nav = useNavigate();
   const active = chandas.filter((c) => !c.voided);
   const activeExp = expenses.filter((e) => !e.voided);
@@ -665,11 +685,20 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
     const ev = kind.slice(6);
     const evChandas = active.filter((c) => (c.event || "Ganpati Mandap") === ev);
     const evExpenses = activeExp.filter((e) => (e.event || "Ganpati Mandap") === ev);
+    const eventTransfers = (stats?.event_transfers || []).filter((t) => !t.voided && (t.from_event === ev || t.to_event === ev));
     const received = evChandas.filter((c) => c.status === "Collected").reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
     const pending = evChandas.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
     const paidOut = evExpenses.reduce((s, e) => s + (e.amount_paid || 0), 0);
-    const net = received - evExpenses.reduce((s, e) => s + (e.group_funds_used || 0), 0);
+    const evStats = stats?.by_event?.[ev] || {};
+    const net = evStats.net ?? (received - evExpenses.reduce((s, e) => s + (e.group_funds_used || 0), 0));
+    const coveredIn = evStats.covered_in || 0;
+    const contributedOut = evStats.contributed_out || 0;
     const cc = colorForEvent(ev);
+    const removeET = async (id) => {
+      if (!window.confirm("Remove this event transfer?")) return;
+      try { await eventTransferApi.remove(id); toast.success("Removed"); reload(); onClose(); }
+      catch { toast.error("Failed"); }
+    };
     conf = {
       title: `${ev} — Breakdown`,
       body: () => (
@@ -679,17 +708,52 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Received</div>
               <div className="text-sm font-bold font-num text-emerald-700">{formatINR(received)}</div>
               {pending > 0.01 && <div className="text-[10px] text-orange-600">+{formatINR(pending)} pending</div>}
+              {coveredIn > 0.01 && <div className="text-[10px] text-teal-700">+{formatINR(coveredIn)} covered</div>}
             </div>
             <div>
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Expenses</div>
               <div className="text-sm font-bold font-num text-red-700">-{formatINR(paidOut)}</div>
               <div className="text-[10px] text-slate-500">{evExpenses.length} bill{evExpenses.length === 1 ? "" : "s"}</div>
+              {contributedOut > 0.01 && <div className="text-[10px] text-orange-700">+{formatINR(contributedOut)} shared</div>}
             </div>
             <div>
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Net</div>
               <div className={`text-sm font-bold font-num ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net >= 0 ? "+" : ""}{formatINR(net)}</div>
+              {net < -0.01 && (
+                <button onClick={() => switchKind(`cover-loss:${ev}`)} data-testid={`event-modal-cover-${ev}`}
+                  className="mt-1 text-[10px] text-red-700 font-semibold hover:underline flex items-center gap-0.5">
+                  <Repeat size={10} /> cover loss
+                </button>
+              )}
             </div>
           </div>
+
+          {eventTransfers.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Event Transfers · {eventTransfers.length}</div>
+              <div className="divide-y divide-slate-100">
+                {eventTransfers.map((t) => (
+                  <div key={t.id} className="px-3 py-2 flex items-center gap-2 bg-teal-50/40" data-testid={`event-transfer-row-${t.id}`}>
+                    <Repeat size={13} className="text-teal-700 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-slate-800 truncate">
+                        {t.from_event} <span className="text-teal-600 mx-1">→</span> {t.to_event}
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate">{formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}</div>
+                    </div>
+                    <div className={`font-num font-bold text-sm shrink-0 ${t.to_event === ev ? "text-emerald-700" : "text-orange-700"}`}>
+                      {t.to_event === ev ? "+" : "-"}{formatINR(t.amount)}
+                    </div>
+                    <button onClick={() => removeET(t.id)} data-testid={`event-transfer-remove-${t.id}`}
+                      className="shrink-0 w-8 h-8 rounded-lg hover:bg-red-50 text-red-500 flex items-center justify-center" title="Remove transfer">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
             Chanda · {evChandas.length}
           </div>
@@ -701,6 +765,21 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
         </div>
       ),
       deepLink: `/list?event=${encodeURIComponent(ev)}`,
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("cover-loss:")) {
+    const targetEv = kind.slice(11);
+    conf = {
+      title: `Cover ${targetEv} Loss`,
+      body: () => (
+        <CoverLossForm
+          targetEvent={targetEv}
+          stats={stats}
+          onDone={() => { reload(); onClose(); }}
+        />
+      ),
+      deepLink: "/",
     };
   }
 
@@ -871,6 +950,126 @@ function ReimbRows({ entries }) {
           <div className="font-num font-bold text-sm text-emerald-700 shrink-0">{formatINR(r.amount)}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function CoverLossForm({ targetEvent, stats, onDone }) {
+  const byEvent = stats?.by_event || {};
+  const shortfall = Math.max(0, -(byEvent[targetEvent]?.net || 0));
+  const sources = Object.entries(byEvent).filter(([ev, d]) => ev !== targetEvent && (d.net || 0) > 0.01);
+  const [fromEvent, setFromEvent] = React.useState(sources[0]?.[0] || "");
+  const [amount, setAmount] = React.useState(String(Math.round(shortfall)));
+  const [note, setNote] = React.useState(`Cover ${targetEvent} shortfall`);
+  const [saving, setSaving] = React.useState(false);
+  const numAmt = Number(amount) || 0;
+  const srcAvailable = fromEvent ? Math.max(0, (byEvent[fromEvent]?.net || 0)) : 0;
+  const overdraw = numAmt > srcAvailable + 0.01;
+
+  const submit = async () => {
+    if (!fromEvent) return toast.error("Source event chuno");
+    if (numAmt <= 0) return toast.error("Amount daalo");
+    if (overdraw) return toast.error(`${fromEvent} ke paas sirf ${formatINR(srcAvailable)} available hai`);
+    setSaving(true);
+    try {
+      await eventTransferApi.create({
+        from_event: fromEvent,
+        to_event: targetEvent,
+        amount: numAmt,
+        date: new Date().toISOString().slice(0, 10),
+        note: note.trim() || null,
+      });
+      toast.success(`${formatINR(numAmt)} transferred from ${fromEvent} to ${targetEvent}`);
+      onDone();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally { setSaving(false); }
+  };
+
+  if (sources.length === 0) {
+    return (
+      <div className="p-6 text-center text-slate-500 text-sm" data-testid="cover-loss-no-source">
+        Koi doosra event me surplus (positive net) nahi hai jisse cover kar sako.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3" data-testid="cover-loss-form">
+      <div className="rounded-xl bg-red-50 border border-red-100 p-3" data-testid="cover-loss-shortfall">
+        <div className="text-xs text-red-800 font-semibold uppercase tracking-wide">{targetEvent} — Shortfall</div>
+        <div className="text-2xl font-extrabold font-num text-red-700">{formatINR(shortfall)}</div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 block">Cover from event</label>
+        <div className="flex flex-col gap-1.5" data-testid="cover-loss-sources">
+          {sources.map(([ev, d]) => {
+            const cc = colorForEvent(ev);
+            return (
+              <button
+                type="button"
+                key={ev}
+                onClick={() => setFromEvent(ev)}
+                data-testid={`cover-loss-source-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                className={`rounded-lg px-3 py-2 flex items-center gap-2 border transition-colors text-left ${fromEvent === ev ? "border-teal-600 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+              >
+                <span className={`w-2 h-2 rounded-full ${cc.dot}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-800 truncate">{ev}</div>
+                  <div className="text-[10px] text-slate-500 font-num">Available surplus: {formatINR(d.net || 0)}</div>
+                </div>
+                {fromEvent === ev && <CheckCircle2 size={16} className="text-teal-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 block">Amount</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            data-testid="cover-loss-amount"
+            className={`w-full h-12 pl-7 pr-3 rounded-xl border ${overdraw ? "border-red-400" : "border-slate-300"} focus:border-teal-600 outline-none text-base font-num font-bold`}
+          />
+        </div>
+        {overdraw && (
+          <div className="text-[11px] text-red-600 mt-1" data-testid="cover-loss-overdraw">
+            {fromEvent} ke paas sirf {formatINR(srcAvailable)} available hai
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 block">Note (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          data-testid="cover-loss-note"
+          className="w-full h-11 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-sm"
+        />
+      </div>
+
+      <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 text-[11px] text-slate-600" data-testid="cover-loss-explanation">
+        <div className="font-semibold text-slate-700 mb-0.5">Ye kya karega?</div>
+        <div>Ye ek accounting entry hai — koi member cash ya balance nahi badalta. Sirf event-wise report me <strong>{fromEvent || "source"}</strong> ka net -{formatINR(numAmt)} ho jaayega aur <strong>{targetEvent}</strong> ka net +{formatINR(numAmt)}.</div>
+      </div>
+
+      <button
+        onClick={submit}
+        disabled={saving || overdraw || numAmt <= 0}
+        data-testid="cover-loss-submit"
+        className="w-full h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        <Repeat size={16} /> {saving ? "Saving..." : `Transfer ${formatINR(numAmt)} to ${targetEvent}`}
+      </button>
     </div>
   );
 }
