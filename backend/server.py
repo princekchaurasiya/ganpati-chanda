@@ -31,36 +31,46 @@ ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities"
 class ChandaBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str
+    mobile: Optional[str] = None
     amount: float
     received_amount: float = 0
     collector: str
     payment_mode: PaymentMode = "Cash"
     status: Status = "Collected"
     date: str
+    receipt_book_id: Optional[str] = None
+    receipt_book_name: Optional[str] = None
+    receipt_no: Optional[int] = None
     note: Optional[str] = None
 
 
 class ChandaCreate(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str
+    mobile: Optional[str] = None
     amount: float
     received_amount: Optional[float] = None
     collector: str
     payment_mode: PaymentMode = "Cash"
     status: Status = "Collected"
     date: str
+    receipt_book_id: Optional[str] = None
+    receipt_no: Optional[int] = None
     note: Optional[str] = None
 
 
 class ChandaUpdate(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: Optional[str] = None
+    mobile: Optional[str] = None
     amount: Optional[float] = None
     received_amount: Optional[float] = None
     collector: Optional[str] = None
     payment_mode: Optional[PaymentMode] = None
     status: Optional[Status] = None
     date: Optional[str] = None
+    receipt_book_id: Optional[str] = None
+    receipt_no: Optional[int] = None
     note: Optional[str] = None
     voided: Optional[bool] = None
 
@@ -192,6 +202,37 @@ class Reimbursement(ReimbursementBase):
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class ReceiptBook(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str  # e.g., "Book 1"
+    prefix: str  # e.g., "B1"
+    start_no: int = 1
+    end_no: int = 50
+    assigned_to: Optional[str] = None
+    note: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class ReceiptBookCreate(BaseModel):
+    name: str
+    prefix: Optional[str] = None
+    start_no: int = 1
+    end_no: int = 50
+    assigned_to: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ReceiptBookUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: Optional[str] = None
+    prefix: Optional[str] = None
+    start_no: Optional[int] = None
+    end_no: Optional[int] = None
+    assigned_to: Optional[str] = None
+    note: Optional[str] = None
+
+
 # ============= Balance Helpers =============
 async def compute_held(member: str, exclude_transfer_id: Optional[str] = None,
                        exclude_expense_id: Optional[str] = None,
@@ -232,6 +273,25 @@ async def compute_reimb_due(member: str, exclude_reimb_id: Optional[str] = None)
     return personal - reimbursement_received
 
 
+async def _resolve_receipt_book_snapshot(book_id: Optional[str], receipt_no: Optional[int], exclude_chanda_id: Optional[str] = None):
+    if not book_id:
+        return None, None
+    book = await db.receipt_books.find_one({"id": book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(400, "Receipt book not found")
+    if receipt_no is None:
+        return book["name"], None
+    if receipt_no < book["start_no"] or receipt_no > book["end_no"]:
+        raise HTTPException(400, f"Receipt {receipt_no} is outside {book['name']} range ({book['start_no']}-{book['end_no']})")
+    q = {"receipt_book_id": book_id, "receipt_no": receipt_no, "voided": {"$ne": True}}
+    if exclude_chanda_id:
+        q["id"] = {"$ne": exclude_chanda_id}
+    dup = await db.chandas.find_one(q, {"_id": 0})
+    if dup:
+        raise HTTPException(400, f"{book['name']} / Receipt {receipt_no} already used for {dup.get('name')}")
+    return book["name"], receipt_no
+
+
 # ============= Chanda Routes =============
 @api_router.get("/")
 async def root():
@@ -246,6 +306,9 @@ async def create_chanda(payload: ChandaCreate):
             data["received_amount"] = data["amount"]
     else:
         data["received_amount"] = 0
+    book_name, r_no = await _resolve_receipt_book_snapshot(data.get("receipt_book_id"), data.get("receipt_no"))
+    data["receipt_book_name"] = book_name
+    data["receipt_no"] = r_no
     chanda = Chanda(**data)
     if chanda.status == "Collected" and not chanda.collected_at:
         chanda.collected_at = datetime.now(timezone.utc).isoformat()
@@ -286,6 +349,12 @@ async def update_chanda(chanda_id: str, payload: ChandaUpdate):
     if new_status == "Pending":
         update_data["collected_at"] = None
         update_data["received_amount"] = 0
+    if "receipt_book_id" in update_data or "receipt_no" in update_data:
+        merged_book = update_data.get("receipt_book_id", existing.get("receipt_book_id"))
+        merged_no = update_data.get("receipt_no", existing.get("receipt_no"))
+        book_name, r_no = await _resolve_receipt_book_snapshot(merged_book, merged_no, exclude_chanda_id=chanda_id)
+        update_data["receipt_book_name"] = book_name
+        update_data["receipt_no"] = r_no
     await db.chandas.update_one({"id": chanda_id}, {"$set": update_data})
     return await db.chandas.find_one({"id": chanda_id}, {"_id": 0})
 
@@ -326,6 +395,74 @@ async def delete_chanda(chanda_id: str):
     res = await db.chandas.delete_one({"id": chanda_id})
     if res.deleted_count == 0:
         raise HTTPException(404, "Entry not found")
+    return {"ok": True}
+
+
+# ============= Receipt Book Routes =============
+@api_router.get("/receipt-books", response_model=List[ReceiptBook])
+async def list_receipt_books():
+    return await db.receipt_books.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
+
+
+@api_router.post("/receipt-books", response_model=ReceiptBook)
+async def create_receipt_book(payload: ReceiptBookCreate):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Name is required")
+    dup = await db.receipt_books.find_one({"name": name}, {"_id": 0})
+    if dup:
+        raise HTTPException(400, "A receipt book with this name already exists")
+    prefix = (payload.prefix or "").strip() or "".join(w[0] for w in name.split() if w).upper() or name[:2].upper()
+    if payload.end_no < payload.start_no:
+        raise HTTPException(400, "end_no must be ≥ start_no")
+    book = ReceiptBook(name=name, prefix=prefix, start_no=payload.start_no, end_no=payload.end_no,
+                      assigned_to=(payload.assigned_to or None), note=payload.note)
+    await db.receipt_books.insert_one(book.model_dump())
+    return book
+
+
+@api_router.put("/receipt-books/{book_id}", response_model=ReceiptBook)
+async def update_receipt_book(book_id: str, payload: ReceiptBookUpdate):
+    existing = await db.receipt_books.find_one({"id": book_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Receipt book not found")
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "name" in update_data:
+        update_data["name"] = update_data["name"].strip()
+        dup = await db.receipt_books.find_one({"name": update_data["name"], "id": {"$ne": book_id}}, {"_id": 0})
+        if dup:
+            raise HTTPException(400, "A receipt book with this name already exists")
+    merged = {**existing, **update_data}
+    if merged.get("end_no", 0) < merged.get("start_no", 0):
+        raise HTTPException(400, "end_no must be ≥ start_no")
+    await db.receipt_books.update_one({"id": book_id}, {"$set": update_data})
+    # cascade name change to snapshot on chandas
+    if "name" in update_data and update_data["name"] != existing["name"]:
+        await db.chandas.update_many({"receipt_book_id": book_id}, {"$set": {"receipt_book_name": update_data["name"]}})
+    return await db.receipt_books.find_one({"id": book_id}, {"_id": 0})
+
+
+@api_router.get("/receipt-books/{book_id}/next")
+async def next_receipt_no(book_id: str):
+    book = await db.receipt_books.find_one({"id": book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(404, "Receipt book not found")
+    used = await db.chandas.find({"receipt_book_id": book_id, "voided": {"$ne": True}, "receipt_no": {"$exists": True}}, {"_id": 0, "receipt_no": 1}).to_list(50000)
+    used_nos = set(u.get("receipt_no") for u in used if u.get("receipt_no") is not None)
+    for n in range(book["start_no"], book["end_no"] + 1):
+        if n not in used_nos:
+            return {"next": n, "used_count": len(used_nos), "total": book["end_no"] - book["start_no"] + 1}
+    return {"next": None, "used_count": len(used_nos), "total": book["end_no"] - book["start_no"] + 1}
+
+
+@api_router.delete("/receipt-books/{book_id}")
+async def delete_receipt_book(book_id: str):
+    in_use = await db.chandas.count_documents({"receipt_book_id": book_id})
+    if in_use > 0:
+        raise HTTPException(400, f"Cannot delete — {in_use} chanda entries reference this book")
+    res = await db.receipt_books.delete_one({"id": book_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Receipt book not found")
     return {"ok": True}
 
 
@@ -833,13 +970,14 @@ async def dashboard():
 @api_router.get("/backup")
 async def backup():
     return {
-        "version": 4,
+        "version": 5,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "chandas": await db.chandas.find({}, {"_id": 0}).to_list(50000),
         "collectors": await db.collectors.find({}, {"_id": 0}).to_list(1000),
         "expenses": await db.expenses.find({}, {"_id": 0}).to_list(50000),
         "transfers": await db.transfers.find({}, {"_id": 0}).to_list(50000),
         "reimbursements": await db.reimbursements.find({}, {"_id": 0}).to_list(50000),
+        "receipt_books": await db.receipt_books.find({}, {"_id": 0}).to_list(1000),
     }
 
 
@@ -850,18 +988,19 @@ class RestorePayload(BaseModel):
     expenses: List[dict] = []
     transfers: List[dict] = []
     reimbursements: List[dict] = []
+    receipt_books: List[dict] = []
     mode: Literal["replace", "merge"] = "merge"
 
 
 @api_router.post("/restore")
 async def restore(payload: RestorePayload):
     if payload.mode == "replace":
-        for coll in ("chandas", "collectors", "expenses", "transfers", "reimbursements"):
+        for coll in ("chandas", "collectors", "expenses", "transfers", "reimbursements", "receipt_books"):
             await db[coll].delete_many({})
     for coll, items in [
         ("chandas", payload.chandas), ("collectors", payload.collectors),
         ("expenses", payload.expenses), ("transfers", payload.transfers),
-        ("reimbursements", payload.reimbursements),
+        ("reimbursements", payload.reimbursements), ("receipt_books", payload.receipt_books),
     ]:
         for it in items:
             it.pop("_id", None)
@@ -875,6 +1014,7 @@ async def restore(payload: RestorePayload):
         "expenses_restored": len(payload.expenses),
         "transfers_restored": len(payload.transfers),
         "reimbursements_restored": len(payload.reimbursements),
+        "receipt_books_restored": len(payload.receipt_books),
     }
 
 
@@ -887,12 +1027,16 @@ async def seed():
     default_collectors = ["Monu", "Shrikant", "Amit Sharma", "Pooja Iyer"]
     for name in default_collectors:
         await db.collectors.insert_one(Collector(name=name).model_dump())
+    book1 = ReceiptBook(name="Book 1", prefix="B1", start_no=1, end_no=50, assigned_to="Monu")
+    book2 = ReceiptBook(name="Book 2", prefix="B2", start_no=51, end_no=100, assigned_to="Shrikant")
+    await db.receipt_books.insert_one(book1.model_dump())
+    await db.receipt_books.insert_one(book2.model_dump())
     today = date.today().isoformat()
     demo_chandas = [
-        {"name": "Ramesh Kumar", "amount": 2000, "collector": "Shrikant", "payment_mode": "Cash", "status": "Collected"},
-        {"name": "Anita Sharma", "amount": 3000, "collector": "Monu", "payment_mode": "UPI", "status": "Collected"},
-        {"name": "Vijay Singh", "amount": 5000, "collector": "Monu", "payment_mode": "Cash", "status": "Collected"},
-        {"name": "Sunita Devi", "amount": 2000, "collector": "Monu", "payment_mode": "UPI", "status": "Collected"},
+        {"name": "Ramesh Kumar", "mobile": "98111 22001", "amount": 2000, "collector": "Shrikant", "payment_mode": "Cash", "status": "Collected", "receipt_book_id": book2.id, "receipt_book_name": book2.name, "receipt_no": 51},
+        {"name": "Anita Sharma", "mobile": "98111 22002", "amount": 3000, "collector": "Monu", "payment_mode": "UPI", "status": "Collected", "receipt_book_id": book1.id, "receipt_book_name": book1.name, "receipt_no": 1},
+        {"name": "Vijay Singh", "mobile": "98111 22003", "amount": 5000, "collector": "Monu", "payment_mode": "Cash", "status": "Collected", "receipt_book_id": book1.id, "receipt_book_name": book1.name, "receipt_no": 2},
+        {"name": "Sunita Devi", "amount": 2000, "collector": "Monu", "payment_mode": "UPI", "status": "Collected", "receipt_book_id": book1.id, "receipt_book_name": book1.name, "receipt_no": 3},
         {"name": "Prakash Jain", "amount": 5000, "collector": "Amit Sharma", "payment_mode": "Bank Transfer", "status": "Pending"},
     ]
     for d in demo_chandas:

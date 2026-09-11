@@ -64,6 +64,14 @@ export const reimbursementApi = {
   remove: (id) => client.delete(`/reimbursements/${id}`).then((r) => r.data),
 };
 
+export const receiptBookApi = {
+  list: () => client.get("/receipt-books").then((r) => r.data),
+  create: (data) => client.post("/receipt-books", data).then((r) => r.data),
+  update: (id, data) => client.put(`/receipt-books/${id}`, data).then((r) => r.data),
+  next: (id) => client.get(`/receipt-books/${id}/next`).then((r) => r.data),
+  remove: (id) => client.delete(`/receipt-books/${id}`).then((r) => r.data),
+};
+
 export const ledgerApi = {
   get: () => client.get("/ledger").then((r) => r.data),
 };

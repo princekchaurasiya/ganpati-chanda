@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { chandaApi, collectorApi } from "@/lib/api";
+import { chandaApi, collectorApi, receiptBookApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
-import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon } from "lucide-react";
+import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon, Phone, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 const PRESETS = [101, 251, 501, 1100, 2100, 5100];
@@ -14,19 +14,32 @@ export default function AddChanda() {
   const editing = loc.state?.entry || null;
 
   const [name, setName] = useState(editing?.name || "");
+  const [mobile, setMobile] = useState(editing?.mobile || "");
   const [amount, setAmount] = useState(editing?.amount ? String(editing.amount) : "");
   const [collector, setCollector] = useState(editing?.collector || "");
   const [newCollector, setNewCollector] = useState("");
   const [mode, setMode] = useState(editing?.payment_mode || "Cash");
   const [status, setStatus] = useState(editing?.status || "Collected");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
+  const [receiptBookId, setReceiptBookId] = useState(editing?.receipt_book_id || "");
+  const [receiptNo, setReceiptNo] = useState(editing?.receipt_no ? String(editing.receipt_no) : "");
   const [collectors, setCollectors] = useState([]);
+  const [books, setBooks] = useState([]);
   const [saving, setSaving] = useState(false);
   const [useCustomCollector, setUseCustomCollector] = useState(false);
 
   useEffect(() => {
     collectorApi.list().then(setCollectors).catch(() => {});
+    receiptBookApi.list().then(setBooks).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!receiptBookId || editing) return;
+    receiptBookApi.next(receiptBookId).then((r) => {
+      if (r.next != null && !receiptNo) setReceiptNo(String(r.next));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiptBookId]);
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -42,11 +55,14 @@ export default function AddChanda() {
       }
       const payload = {
         name: name.trim(),
+        mobile: mobile.trim() || null,
         amount: Number(amount),
         collector: finalCollector,
         payment_mode: mode,
         status,
         date: dateStr,
+        receipt_book_id: receiptBookId || null,
+        receipt_no: receiptNo ? Number(receiptNo) : null,
       };
       if (editing) {
         await chandaApi.update(editing.id, payload);
@@ -57,7 +73,7 @@ export default function AddChanda() {
       }
       nav("/list");
     } catch (err) {
-      toast.error("Failed to save entry");
+      toast.error(err?.response?.data?.detail || "Failed to save entry");
     } finally {
       setSaving(false);
     }
@@ -88,6 +104,52 @@ export default function AddChanda() {
             data-testid="add-name-input"
             className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base"
           />
+        </div>
+
+        {/* Mobile */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <Phone size={15} /> Mobile (optional)
+          </label>
+          <input
+            type="tel"
+            inputMode="tel"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            placeholder="98XXX XXXXX"
+            data-testid="add-mobile-input"
+            className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base"
+          />
+        </div>
+
+        {/* Receipt Book + No */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <BookOpen size={15} /> Receipt Book / No.
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={receiptBookId}
+              onChange={(e) => setReceiptBookId(e.target.value)}
+              data-testid="add-receipt-book-select"
+              className="w-full h-12 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white"
+            >
+              <option value="">-- No book --</option>
+              {books.map((b) => (
+                <option key={b.id} value={b.id}>{b.name} ({b.prefix}: {b.start_no}-{b.end_no})</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={receiptNo}
+              onChange={(e) => setReceiptNo(e.target.value)}
+              placeholder="Receipt No."
+              disabled={!receiptBookId}
+              data-testid="add-receipt-no-input"
+              className="w-full h-12 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base font-num font-bold disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </div>
         </div>
 
         {/* Amount */}

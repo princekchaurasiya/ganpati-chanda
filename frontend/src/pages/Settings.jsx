@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
-import { collectorApi, backupApi } from "@/lib/api";
-import { Plus, Trash2, Pencil, Check, X, Download, Upload, Info } from "lucide-react";
+import { collectorApi, backupApi, receiptBookApi } from "@/lib/api";
+import { Plus, Trash2, Pencil, Check, X, Download, Upload, Info, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
 
@@ -11,10 +11,42 @@ export default function Settings() {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [confirmDel, setConfirmDel] = useState(null);
+  const [books, setBooks] = useState([]);
+  const [bookForm, setBookForm] = useState({ name: "", prefix: "", start_no: 1, end_no: 50, assigned_to: "" });
+  const [showBookForm, setShowBookForm] = useState(false);
   const fileRef = useRef(null);
 
-  const load = () => collectorApi.list().then(setCollectors);
+  const load = () => {
+    collectorApi.list().then(setCollectors);
+    receiptBookApi.list().then(setBooks);
+  };
   useEffect(() => { load(); }, []);
+
+  const addBook = async (e) => {
+    e?.preventDefault();
+    if (!bookForm.name.trim()) return toast.error("Book name required");
+    try {
+      await receiptBookApi.create({
+        name: bookForm.name.trim(),
+        prefix: bookForm.prefix.trim() || null,
+        start_no: Number(bookForm.start_no),
+        end_no: Number(bookForm.end_no),
+        assigned_to: bookForm.assigned_to || null,
+      });
+      setBookForm({ name: "", prefix: "", start_no: 1, end_no: 50, assigned_to: "" });
+      setShowBookForm(false);
+      toast.success("Receipt book created");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const removeBook = async (b) => {
+    if (!window.confirm(`Remove ${b.name}?`)) return;
+    try { await receiptBookApi.remove(b.id); toast.success("Removed"); load(); }
+    catch (err) { toast.error(err?.response?.data?.detail || "Cannot remove"); }
+  };
 
   const addCollector = async (e) => {
     e?.preventDefault();
@@ -97,6 +129,66 @@ export default function Settings() {
   return (
     <div className="space-y-4" data-testid="settings-page">
       <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Settings (सेटिंग्स)</h1>
+
+      {/* Receipt Books */}
+      <section className="card-elevated p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold text-slate-900 flex items-center gap-2"><BookOpen size={16} /> Receipt Books</h2>
+          <button onClick={() => setShowBookForm((v) => !v)} data-testid="toggle-book-form-btn"
+            className="h-9 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold flex items-center gap-1">
+            <Plus size={14} /> {showBookForm ? "Close" : "New Book"}
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">Book + Receipt No. uniquely identifies each Chanda entry.</p>
+        {showBookForm && (
+          <form onSubmit={addBook} className="bg-slate-50 rounded-xl p-3 mb-3 space-y-2" data-testid="book-form">
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" value={bookForm.name} onChange={(e) => setBookForm({ ...bookForm, name: e.target.value })}
+                placeholder="Book Name (e.g. Book 3)" data-testid="book-name-input"
+                className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+              <input type="text" value={bookForm.prefix} onChange={(e) => setBookForm({ ...bookForm, prefix: e.target.value })}
+                placeholder="Prefix (B3)" data-testid="book-prefix-input"
+                className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" value={bookForm.start_no} onChange={(e) => setBookForm({ ...bookForm, start_no: e.target.value })}
+                placeholder="Start" data-testid="book-start-input"
+                className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+              <input type="number" value={bookForm.end_no} onChange={(e) => setBookForm({ ...bookForm, end_no: e.target.value })}
+                placeholder="End" data-testid="book-end-input"
+                className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+              <select value={bookForm.assigned_to} onChange={(e) => setBookForm({ ...bookForm, assigned_to: e.target.value })}
+                data-testid="book-assigned-select"
+                className="h-10 px-2 rounded-lg border border-slate-300 outline-none text-sm bg-white">
+                <option value="">Assign to...</option>
+                {collectors.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+            <button type="submit" data-testid="book-submit-btn"
+              className="w-full h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm">Create Book</button>
+          </form>
+        )}
+        {books.length === 0 ? (
+          <div className="text-sm text-slate-500">No receipt books yet</div>
+        ) : (
+          <div className="space-y-1.5">
+            {books.map((b) => (
+              <div key={b.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl" data-testid={`book-row-${b.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-slate-800 truncate">{b.name} <span className="text-[10px] text-slate-500 font-mono">({b.prefix})</span></div>
+                  <div className="text-xs text-slate-500">
+                    Receipt {b.start_no}–{b.end_no}{b.assigned_to ? ` · ${b.assigned_to}` : ""}
+                  </div>
+                </div>
+                <button onClick={() => removeBook(b)} data-testid={`remove-book-${b.id}`}
+                  className="w-9 h-9 rounded-lg text-red-600 hover:bg-white flex items-center justify-center">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Collectors */}
       <section className="card-elevated p-5">
