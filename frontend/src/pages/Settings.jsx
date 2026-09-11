@@ -48,6 +48,31 @@ export default function Settings() {
     catch (err) { toast.error(err?.response?.data?.detail || "Cannot remove"); }
   };
 
+  const [editingBookId, setEditingBookId] = useState(null);
+  const [editBook, setEditBook] = useState({ name: "", prefix: "", start_no: 1, end_no: 50, assigned_to: "" });
+  const startEditBook = (b) => {
+    setEditingBookId(b.id);
+    setEditBook({ name: b.name, prefix: b.prefix, start_no: b.start_no, end_no: b.end_no, assigned_to: b.assigned_to || "" });
+  };
+  const cancelEditBook = () => setEditingBookId(null);
+  const saveEditBook = async () => {
+    if (!editBook.name.trim()) return toast.error("Name required");
+    try {
+      await receiptBookApi.update(editingBookId, {
+        name: editBook.name.trim(),
+        prefix: editBook.prefix.trim() || null,
+        start_no: Number(editBook.start_no),
+        end_no: Number(editBook.end_no),
+        assigned_to: editBook.assigned_to || null,
+      });
+      toast.success("Book updated");
+      setEditingBookId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    }
+  };
+
   const addCollector = async (e) => {
     e?.preventDefault();
     if (!newName.trim()) return;
@@ -173,18 +198,57 @@ export default function Settings() {
         ) : (
           <div className="space-y-1.5">
             {books.map((b) => (
-              <div key={b.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl" data-testid={`book-row-${b.id}`}>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-slate-800 truncate">{b.name} <span className="text-[10px] text-slate-500 font-mono">({b.prefix})</span></div>
-                  <div className="text-xs text-slate-500">
-                    Receipt {b.start_no}–{b.end_no}{b.assigned_to ? ` · ${b.assigned_to}` : ""}
+              editingBookId === b.id ? (
+                <div key={b.id} className="bg-teal-50 border border-teal-200 rounded-xl p-3 space-y-2" data-testid={`book-edit-${b.id}`}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" value={editBook.name} onChange={(e) => setEditBook({ ...editBook, name: e.target.value })}
+                      placeholder="Name" data-testid={`edit-book-name-${b.id}`}
+                      className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+                    <input type="text" value={editBook.prefix} onChange={(e) => setEditBook({ ...editBook, prefix: e.target.value })}
+                      placeholder="Prefix" data-testid={`edit-book-prefix-${b.id}`}
+                      className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="number" value={editBook.start_no} onChange={(e) => setEditBook({ ...editBook, start_no: e.target.value })}
+                      placeholder="Start" data-testid={`edit-book-start-${b.id}`}
+                      className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+                    <input type="number" value={editBook.end_no} onChange={(e) => setEditBook({ ...editBook, end_no: e.target.value })}
+                      placeholder="End" data-testid={`edit-book-end-${b.id}`}
+                      className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+                    <select value={editBook.assigned_to} onChange={(e) => setEditBook({ ...editBook, assigned_to: e.target.value })}
+                      data-testid={`edit-book-assigned-${b.id}`}
+                      className="h-10 px-2 rounded-lg border border-slate-300 outline-none text-sm bg-white">
+                      <option value="">Unassigned</option>
+                      {collectors.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={cancelEditBook} data-testid={`edit-book-cancel-${b.id}`}
+                      className="flex-1 h-9 rounded-lg border border-slate-300 text-sm font-medium">Cancel</button>
+                    <button onClick={saveEditBook} data-testid={`edit-book-save-${b.id}`}
+                      className="flex-1 h-9 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold flex items-center justify-center gap-1">
+                      <Check size={14} /> Save
+                    </button>
                   </div>
                 </div>
-                <button onClick={() => removeBook(b)} data-testid={`remove-book-${b.id}`}
-                  className="w-9 h-9 rounded-lg text-red-600 hover:bg-white flex items-center justify-center">
-                  <Trash2 size={16} />
-                </button>
-              </div>
+              ) : (
+                <div key={b.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl" data-testid={`book-row-${b.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-slate-800 truncate">{b.name} <span className="text-[10px] text-slate-500 font-mono">({b.prefix})</span></div>
+                    <div className="text-xs text-slate-500">
+                      Receipt {b.start_no}–{b.end_no}{b.assigned_to ? ` · ${b.assigned_to}` : ""}
+                    </div>
+                  </div>
+                  <button onClick={() => startEditBook(b)} data-testid={`edit-book-${b.id}`}
+                    className="w-9 h-9 rounded-lg text-slate-600 hover:bg-white hover:text-teal-700 flex items-center justify-center">
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={() => removeBook(b)} data-testid={`remove-book-${b.id}`}
+                    className="w-9 h-9 rounded-lg text-red-600 hover:bg-white flex items-center justify-center">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )
             ))}
           </div>
         )}

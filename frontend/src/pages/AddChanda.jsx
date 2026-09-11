@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { chandaApi, collectorApi, receiptBookApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
-import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon, Phone, BookOpen } from "lucide-react";
+import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon, Phone, BookOpen, Plus, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 const PRESETS = [101, 251, 501, 1100, 2100, 5100];
@@ -27,6 +27,44 @@ export default function AddChanda() {
   const [books, setBooks] = useState([]);
   const [saving, setSaving] = useState(false);
   const [useCustomCollector, setUseCustomCollector] = useState(false);
+  const [bookEditor, setBookEditor] = useState(null); // { mode: "new"|"edit", form: {...} }
+
+  const openNewBook = () => setBookEditor({ mode: "new", form: { name: "", prefix: "", start_no: 1, end_no: 50, assigned_to: "" } });
+  const openEditBook = () => {
+    const b = books.find((x) => x.id === receiptBookId);
+    if (!b) return;
+    setBookEditor({ mode: "edit", id: b.id, form: { name: b.name, prefix: b.prefix, start_no: b.start_no, end_no: b.end_no, assigned_to: b.assigned_to || "" } });
+  };
+  const saveBook = async () => {
+    if (!bookEditor?.form?.name?.trim()) return toast.error("Name required");
+    try {
+      let saved;
+      if (bookEditor.mode === "new") {
+        saved = await receiptBookApi.create({
+          name: bookEditor.form.name.trim(),
+          prefix: bookEditor.form.prefix.trim() || null,
+          start_no: Number(bookEditor.form.start_no),
+          end_no: Number(bookEditor.form.end_no),
+          assigned_to: bookEditor.form.assigned_to || null,
+        });
+      } else {
+        saved = await receiptBookApi.update(bookEditor.id, {
+          name: bookEditor.form.name.trim(),
+          prefix: bookEditor.form.prefix.trim() || null,
+          start_no: Number(bookEditor.form.start_no),
+          end_no: Number(bookEditor.form.end_no),
+          assigned_to: bookEditor.form.assigned_to || null,
+        });
+      }
+      const list = await receiptBookApi.list();
+      setBooks(list);
+      setReceiptBookId(saved.id);
+      setBookEditor(null);
+      toast.success(bookEditor.mode === "new" ? "Book created" : "Book updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    }
+  };
 
   useEffect(() => {
     collectorApi.list().then(setCollectors).catch(() => {});
@@ -127,29 +165,80 @@ export default function AddChanda() {
           <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
             <BookOpen size={15} /> Receipt Book / No.
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2">
             <select
               value={receiptBookId}
               onChange={(e) => setReceiptBookId(e.target.value)}
               data-testid="add-receipt-book-select"
-              className="w-full h-12 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white"
+              className="flex-1 h-12 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white min-w-0"
             >
               <option value="">-- No book --</option>
               {books.map((b) => (
                 <option key={b.id} value={b.id}>{b.name} ({b.prefix}: {b.start_no}-{b.end_no})</option>
               ))}
             </select>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={receiptNo}
-              onChange={(e) => setReceiptNo(e.target.value)}
-              placeholder="Receipt No."
-              disabled={!receiptBookId}
-              data-testid="add-receipt-no-input"
-              className="w-full h-12 px-3 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base font-num font-bold disabled:bg-slate-50 disabled:text-slate-400"
-            />
+            <button type="button" onClick={openNewBook} data-testid="add-book-new-btn"
+              className="w-11 h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center shrink-0"
+              aria-label="New book">
+              <Plus size={18} />
+            </button>
+            {receiptBookId && (
+              <button type="button" onClick={openEditBook} data-testid="add-book-edit-btn"
+                className="w-11 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center shrink-0"
+                aria-label="Edit book">
+                <Pencil size={16} />
+              </button>
+            )}
           </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={receiptNo}
+            onChange={(e) => setReceiptNo(e.target.value)}
+            placeholder="Receipt No."
+            disabled={!receiptBookId}
+            data-testid="add-receipt-no-input"
+            className="w-full h-12 px-3 mt-2 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base font-num font-bold disabled:bg-slate-50 disabled:text-slate-400"
+          />
+
+          {bookEditor && (
+            <div className="mt-2 bg-teal-50 border border-teal-200 rounded-xl p-3 space-y-2" data-testid="add-book-editor">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-teal-800 uppercase tracking-wide">
+                  {bookEditor.mode === "new" ? "New Receipt Book" : "Edit Receipt Book"}
+                </div>
+                <button type="button" onClick={() => setBookEditor(null)} className="w-6 h-6 rounded hover:bg-white flex items-center justify-center" data-testid="add-book-close">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="text" value={bookEditor.form.name} onChange={(e) => setBookEditor({ ...bookEditor, form: { ...bookEditor.form, name: e.target.value } })}
+                  placeholder="Book Name (Book 3)" data-testid="add-book-name-input"
+                  className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+                <input type="text" value={bookEditor.form.prefix} onChange={(e) => setBookEditor({ ...bookEditor, form: { ...bookEditor.form, prefix: e.target.value } })}
+                  placeholder="Prefix (B3)" data-testid="add-book-prefix-input"
+                  className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="number" value={bookEditor.form.start_no} onChange={(e) => setBookEditor({ ...bookEditor, form: { ...bookEditor.form, start_no: e.target.value } })}
+                  placeholder="Start" data-testid="add-book-start-input"
+                  className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+                <input type="number" value={bookEditor.form.end_no} onChange={(e) => setBookEditor({ ...bookEditor, form: { ...bookEditor.form, end_no: e.target.value } })}
+                  placeholder="End" data-testid="add-book-end-input"
+                  className="h-10 px-3 rounded-lg border border-slate-300 outline-none text-sm bg-white font-num" />
+                <select value={bookEditor.form.assigned_to} onChange={(e) => setBookEditor({ ...bookEditor, form: { ...bookEditor.form, assigned_to: e.target.value } })}
+                  data-testid="add-book-assigned-select"
+                  className="h-10 px-2 rounded-lg border border-slate-300 outline-none text-sm bg-white">
+                  <option value="">Assign...</option>
+                  {collectors.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <button type="button" onClick={saveBook} data-testid="add-book-save"
+                className="w-full h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold flex items-center justify-center gap-1">
+                <Check size={14} /> {bookEditor.mode === "new" ? "Create Book" : "Save Changes"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Amount */}
