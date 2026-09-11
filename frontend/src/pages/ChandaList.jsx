@@ -5,6 +5,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { Search, MoreVertical, Pencil, Ban, RotateCcw, CheckCircle2, Clock, X, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { mergeEvents, colorForEvent } from "@/lib/events";
 
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 const STATUSES = ["All", "Pending", "Collected"];
@@ -28,6 +29,7 @@ export default function ChandaList() {
   const [mode, setMode] = useState(MODES.includes(params.get("mode")) ? params.get("mode") : "All");
   const [collector, setCollector] = useState(params.get("collector") || "All");
   const [bookId, setBookId] = useState(params.get("book") || "All");
+  const [eventF, setEventF] = useState(params.get("event") || "All");
   const [rNo, setRNo] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -50,6 +52,7 @@ export default function ChandaList() {
       .filter((e) => (mode === "All" ? true : e.payment_mode === mode))
       .filter((e) => (collector === "All" ? true : e.collector === collector))
       .filter((e) => (bookId === "All" ? true : e.receipt_book_id === bookId))
+      .filter((e) => (eventF === "All" ? true : (e.event || "Ganpati Mandap") === eventF))
       .filter((e) => (rNo ? String(e.receipt_no || "") === String(rNo).replace(/^0+/, "") || String(e.receipt_no) === String(rNo) : true))
       .filter((e) => (from ? e.date >= from : true))
       .filter((e) => (to ? e.date <= to : true))
@@ -62,10 +65,12 @@ export default function ChandaList() {
           || (e.receipt_book_name || "").toLowerCase().includes(qq)
           || String(e.receipt_no || "").includes(qq);
       });
-  }, [entries, q, status, mode, collector, bookId, rNo, from, to, showVoided]);
+  }, [entries, q, status, mode, collector, bookId, eventF, rNo, from, to, showVoided]);
+
+  const availableEvents = useMemo(() => mergeEvents(entries.map((e) => e.event).filter(Boolean)), [entries]);
 
   const totalAmount = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.received_amount || 0), 0);
-  const activeFilterCount = [status !== "All", mode !== "All", collector !== "All", bookId !== "All", rNo, from, to].filter(Boolean).length;
+  const activeFilterCount = [status !== "All", mode !== "All", collector !== "All", bookId !== "All", eventF !== "All", rNo, from, to].filter(Boolean).length;
 
   const toggleStatus = async (entry) => {
     const next = entry.status === "Collected" ? "Pending" : "Collected";
@@ -82,7 +87,7 @@ export default function ChandaList() {
     } catch { toast.error("Failed"); }
   };
 
-  const clearFilters = () => { setQ(""); setStatus("All"); setMode("All"); setCollector("All"); setBookId("All"); setRNo(""); setFrom(""); setTo(""); };
+  const clearFilters = () => { setQ(""); setStatus("All"); setMode("All"); setCollector("All"); setBookId("All"); setEventF("All"); setRNo(""); setFrom(""); setTo(""); };
 
   return (
     <div className="space-y-3" data-testid="chanda-list-page">
@@ -135,6 +140,18 @@ export default function ChandaList() {
               {MODES.map((m) => (
                 <button key={m} onClick={() => setMode(m)} data-testid={`filter-mode-${m.replace(/\s/g,'-').toLowerCase()}`}
                   className={`chip text-xs px-3 py-1 ${mode === m ? "chip-active" : ""}`}>{m}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Event / Purpose</div>
+            <div className="flex flex-wrap gap-1" data-testid="filter-event-chips">
+              <button onClick={() => setEventF("All")} data-testid="filter-event-all"
+                className={`chip text-xs px-3 py-1 ${eventF === "All" ? "chip-active" : ""}`}>All</button>
+              {availableEvents.map((ev) => (
+                <button key={ev} onClick={() => setEventF(ev)}
+                  data-testid={`filter-event-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                  className={`chip text-xs px-3 py-1 ${eventF === ev ? "chip-active" : ""}`}>{ev}</button>
               ))}
             </div>
           </div>
@@ -208,8 +225,12 @@ export default function ChandaList() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className={`text-sm font-semibold text-slate-900 truncate ${e.voided ? "line-through" : ""}`}>{e.name}</div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    {e.collector} · {e.payment_mode} · {formatDate(e.date)}{e.mobile ? ` · ${e.mobile}` : ""}
+                  <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                    {e.event && (() => {
+                      const cc = colorForEvent(e.event);
+                      return <span className={`text-[9px] px-1 py-[1px] rounded-full font-semibold ${cc.bg} ${cc.text}`} data-testid={`entry-event-${e.id}`}>{e.event}</span>;
+                    })()}
+                    <span>{e.collector} · {e.payment_mode} · {formatDate(e.date)}{e.mobile ? ` · ${e.mobile}` : ""}</span>
                   </div>
                 </div>
                 <div className="text-right shrink-0">

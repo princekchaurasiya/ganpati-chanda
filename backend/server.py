@@ -42,6 +42,7 @@ class ChandaBase(BaseModel):
     receipt_book_name: Optional[str] = None
     receipt_no: Optional[int] = None
     note: Optional[str] = None
+    event: str = "Ganpati Mandap"
 
 
 class ChandaCreate(BaseModel):
@@ -57,6 +58,7 @@ class ChandaCreate(BaseModel):
     receipt_book_id: Optional[str] = None
     receipt_no: Optional[int] = None
     note: Optional[str] = None
+    event: Optional[str] = "Ganpati Mandap"
 
 
 class ChandaUpdate(BaseModel):
@@ -73,6 +75,7 @@ class ChandaUpdate(BaseModel):
     receipt_no: Optional[int] = None
     note: Optional[str] = None
     voided: Optional[bool] = None
+    event: Optional[str] = None
 
 
 class Chanda(ChandaBase):
@@ -111,6 +114,7 @@ class ExpenseBase(BaseModel):
     payment_mode: PaymentMode = "Cash"
     date: str
     note: Optional[str] = None
+    event: str = "Ganpati Mandap"
 
 
 class ExpenseCreate(ExpenseBase):
@@ -131,6 +135,7 @@ class ExpenseUpdate(BaseModel):
     date: Optional[str] = None
     note: Optional[str] = None
     voided: Optional[bool] = None
+    event: Optional[str] = None
 
 
 class Expense(ExpenseBase):
@@ -923,6 +928,26 @@ async def dashboard():
     for e in expenses:
         by_expense_category[e["category"]] = by_expense_category.get(e["category"], 0) + e.get("amount_paid", 0)
 
+    # Event-wise breakdown (Ganpati Mandap vs Dahi Handi etc.)
+    by_event = {}
+    for c in chandas:
+        ev = c.get("event") or "Ganpati Mandap"
+        b = by_event.setdefault(ev, {"received": 0, "promised": 0, "pending": 0, "count": 0,
+                                     "expense_paid": 0, "expense_bill": 0, "expense_count": 0})
+        b["received"] += c.get("received_amount", 0)
+        b["promised"] += c.get("amount", 0)
+        b["pending"] += c.get("amount", 0) - c.get("received_amount", 0)
+        b["count"] += 1
+    for e in expenses:
+        ev = e.get("event") or "Ganpati Mandap"
+        b = by_event.setdefault(ev, {"received": 0, "promised": 0, "pending": 0, "count": 0,
+                                     "expense_paid": 0, "expense_bill": 0, "expense_count": 0})
+        b["expense_paid"] += e.get("amount_paid", 0)
+        b["expense_bill"] += e.get("total_bill", 0)
+        b["expense_count"] += 1
+    for ev, b in by_event.items():
+        b["net"] = b["received"] - b["expense_paid"]
+
     cash_held = total_received - total_group_funds_used - total_reimbursed
     remaining_balance = cash_held
 
@@ -946,6 +971,7 @@ async def dashboard():
             "count": len(expenses),
             "by_category": by_expense_category,
         },
+        "by_event": by_event,
         "transfers": {"count": len(transfers), "total_amount": sum(t["amount"] for t in transfers)},
         "reimbursements": {
             "total_reimbursed": total_reimbursed,
@@ -1092,6 +1118,9 @@ async def migrate_legacy():
     async for e in db.expenses.find({"group_funds_used": {"$exists": False}}):
         amt = e.get("amount_paid", 0)
         await db.expenses.update_one({"_id": e["_id"]}, {"$set": {"group_funds_used": amt, "personal_contribution": 0}})
+    # Backfill event tag on legacy chandas/expenses so filtering works out of the box
+    await db.chandas.update_many({"event": {"$exists": False}}, {"$set": {"event": "Ganpati Mandap"}})
+    await db.expenses.update_many({"event": {"$exists": False}}, {"$set": {"event": "Ganpati Mandap"}})
 
 
 @app.on_event("shutdown")

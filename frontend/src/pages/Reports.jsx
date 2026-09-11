@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { mergeEvents } from "@/lib/events";
 
 // jsPDF's default Helvetica cannot render ₹ glyph — use "Rs." for PDF only.
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -17,6 +18,7 @@ const ALL_COLS = [
   { key: "name", label: "Name" },
   { key: "amount", label: "Amount" },
   { key: "collector", label: "Collector" },
+  { key: "event", label: "Event" },
   { key: "payment_mode", label: "Payment Mode" },
   { key: "status", label: "Status" },
   { key: "date", label: "Date" },
@@ -32,6 +34,7 @@ export default function Reports() {
   const [status, setStatus] = useState("All");
   const [mode, setMode] = useState("All");
   const [collector, setCollector] = useState("All");
+  const [eventF, setEventF] = useState("All");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -47,9 +50,12 @@ export default function Reports() {
       .filter((e) => (status === "All" ? true : e.status === status))
       .filter((e) => (mode === "All" ? true : e.payment_mode === mode))
       .filter((e) => (collector === "All" ? true : e.collector === collector))
+      .filter((e) => (eventF === "All" ? true : (e.event || "Ganpati Mandap") === eventF))
       .filter((e) => (from ? e.date >= from : true))
       .filter((e) => (to ? e.date <= to : true));
-  }, [entries, status, mode, collector, from, to]);
+  }, [entries, status, mode, collector, eventF, from, to]);
+
+  const availableEvents = useMemo(() => mergeEvents(entries.map((e) => e.event).filter(Boolean)), [entries]);
 
   const totals = useMemo(() => {
     const t = filtered.reduce((s, e) => s + e.amount, 0);
@@ -67,6 +73,7 @@ export default function Reports() {
     if (k === "date") return formatDate(e.date);
     if (k === "receipt_book_name") return e.receipt_book_name || "";
     if (k === "receipt_no") return e.receipt_no != null ? String(e.receipt_no) : "";
+    if (k === "event") return e.event || "Ganpati Mandap";
     return e[k] || "";
   };
   const cellValuePDF = (e, k) => {
@@ -74,6 +81,7 @@ export default function Reports() {
     if (k === "date") return formatDate(e.date);
     if (k === "receipt_book_name") return e.receipt_book_name || "-";
     if (k === "receipt_no") return e.receipt_no != null ? String(e.receipt_no) : "-";
+    if (k === "event") return e.event || "Ganpati Mandap";
     return e[k] || "";
   };
 
@@ -218,6 +226,18 @@ export default function Reports() {
             <option value="All">All Collectors</option>
             {collectors.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-slate-500 mb-1.5">Event / Purpose</div>
+          <div className="flex flex-wrap gap-1.5" data-testid="report-event-chips">
+            <button onClick={() => setEventF("All")} data-testid="report-event-all"
+              className={`chip ${eventF === "All" ? "chip-active" : ""}`}>All</button>
+            {availableEvents.map((ev) => (
+              <button key={ev} onClick={() => setEventF(ev)}
+                data-testid={`report-event-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                className={`chip ${eventF === ev ? "chip-active" : ""}`}>{ev}</button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>

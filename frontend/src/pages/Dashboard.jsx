@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft } from "lucide-react";
+import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { colorForEvent } from "@/lib/events";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -188,6 +189,48 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      <section className="card-elevated p-5" data-testid="event-breakdown-section">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <CalendarDays size={16} className="text-indigo-700" /> Event / Purpose Breakdown
+          </h2>
+        </div>
+        {Object.keys(stats.by_event || {}).length === 0 ? (
+          <div className="text-sm text-slate-500">No events yet.</div>
+        ) : (
+          <div className="space-y-2">
+            {Object.entries(stats.by_event || {}).sort((a, b) => b[1].received - a[1].received).map(([ev, d]) => {
+              const cc = colorForEvent(ev);
+              return (
+                <button
+                  type="button"
+                  key={ev}
+                  onClick={() => setModalKind(`event:${ev}`)}
+                  data-testid={`event-row-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                  className={`w-full ${cc.bg} rounded-xl px-3 py-2.5 flex items-center gap-3 hover:brightness-95 active:scale-[0.99] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 text-left`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${cc.dot} shrink-0`} />
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-sm font-bold ${cc.text} truncate`}>{ev}</div>
+                    <div className="text-[10px] text-slate-600 font-num">
+                      Received {formatINR(d.received)} · Expenses {formatINR(d.expense_paid)} · Net{" "}
+                      <span className={d.net >= 0 ? "text-emerald-700 font-bold" : "text-red-700 font-bold"}>
+                        {d.net >= 0 ? "+" : ""}{formatINR(d.net)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className={`text-lg font-extrabold font-num ${cc.text}`}>{formatINR(d.received)}</div>
+                    <div className="text-[10px] text-slate-500">{d.count} chanda · {d.expense_count} bill{d.expense_count === 1 ? "" : "s"}</div>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="card-elevated p-5" data-testid="dashboard-mode-section">
         <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-3">
@@ -612,6 +655,49 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
         </div>
       ),
       deepLink: "/expenses",
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("event:")) {
+    const ev = kind.slice(6);
+    const evChandas = active.filter((c) => (c.event || "Ganpati Mandap") === ev);
+    const evExpenses = activeExp.filter((e) => (e.event || "Ganpati Mandap") === ev);
+    const received = evChandas.filter((c) => c.status === "Collected").reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
+    const pending = evChandas.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
+    const paidOut = evExpenses.reduce((s, e) => s + (e.amount_paid || 0), 0);
+    const net = received - evExpenses.reduce((s, e) => s + (e.group_funds_used || 0), 0);
+    const cc = colorForEvent(ev);
+    conf = {
+      title: `${ev} — Breakdown`,
+      body: () => (
+        <div className="space-y-2">
+          <div className={`mx-2 my-2 rounded-xl ${cc.bg} p-3 grid grid-cols-3 gap-2 text-xs`} data-testid="event-modal-summary">
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Received</div>
+              <div className="text-sm font-bold font-num text-emerald-700">{formatINR(received)}</div>
+              {pending > 0.01 && <div className="text-[10px] text-orange-600">+{formatINR(pending)} pending</div>}
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Expenses</div>
+              <div className="text-sm font-bold font-num text-red-700">-{formatINR(paidOut)}</div>
+              <div className="text-[10px] text-slate-500">{evExpenses.length} bill{evExpenses.length === 1 ? "" : "s"}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Net</div>
+              <div className={`text-sm font-bold font-num ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net >= 0 ? "+" : ""}{formatINR(net)}</div>
+            </div>
+          </div>
+          <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+            Chanda · {evChandas.length}
+          </div>
+          <ChandaRows entries={evChandas} onEdit={goEditChanda} reload={reload} />
+          <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100">
+            Expenses · {evExpenses.length}
+          </div>
+          <ExpenseRows entries={evExpenses} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />
+        </div>
+      ),
+      deepLink: `/list?event=${encodeURIComponent(ev)}`,
     };
   }
 

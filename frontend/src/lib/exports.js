@@ -14,6 +14,7 @@ const EXP_COLS = [
   { key: "date", label: "Date" },
   { key: "description", label: "Description" },
   { key: "category", label: "Category" },
+  { key: "event", label: "Event" },
   { key: "vendor", label: "Vendor" },
   { key: "paid_by", label: "Paid By" },
   { key: "payment_mode", label: "Mode" },
@@ -24,11 +25,13 @@ const EXP_COLS = [
 const expCellText = (e, k) => {
   if (k === "date") return formatDate(e.date);
   if (k === "amount_paid" || k === "total_bill") return e[k] != null ? String(e[k]) : "0";
+  if (k === "event") return e.event || "Ganpati Mandap";
   return e[k] || "";
 };
 const expCellPDF = (e, k) => {
   if (k === "date") return formatDate(e.date);
   if (k === "amount_paid" || k === "total_bill") return formatRs(e[k] || 0);
+  if (k === "event") return e.event || "Ganpati Mandap";
   return e[k] || "-";
 };
 

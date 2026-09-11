@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { chandaApi, collectorApi, receiptBookApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
-import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon, Phone, BookOpen, Plus, Pencil, Check, X } from "lucide-react";
+import { Save, ArrowLeft, User, IndianRupee, Calendar as CalIcon, Phone, BookOpen, Plus, Pencil, Check, X, Tag } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_EVENT, mergeEvents } from "@/lib/events";
 
 const PRESETS = [101, 251, 501, 1100, 2100, 5100];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
@@ -23,8 +24,10 @@ export default function AddChanda() {
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
   const [receiptBookId, setReceiptBookId] = useState(editing?.receipt_book_id || "");
   const [receiptNo, setReceiptNo] = useState(editing?.receipt_no ? String(editing.receipt_no) : "");
+  const [event, setEvent] = useState(editing?.event || DEFAULT_EVENT);
   const [collectors, setCollectors] = useState([]);
   const [books, setBooks] = useState([]);
+  const [availableEvents, setAvailableEvents] = useState(mergeEvents([editing?.event].filter(Boolean)));
   const [saving, setSaving] = useState(false);
   const [useCustomCollector, setUseCustomCollector] = useState(false);
   const [bookEditor, setBookEditor] = useState(null); // { mode: "new"|"edit", form: {...} }
@@ -66,9 +69,15 @@ export default function AddChanda() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     collectorApi.list().then(setCollectors).catch(() => {});
     receiptBookApi.list().then(setBooks).catch(() => {});
+    // Collect events already used in DB so custom events show up in dropdown too
+    chandaApi.list().then((list) => {
+      const used = (list || []).map((c) => c.event).filter(Boolean);
+      setAvailableEvents(mergeEvents([...used, editing?.event].filter(Boolean)));
+    }).catch(() => {});
   }, []);
 
   // Auto-select last-used receipt book when adding a new entry
@@ -117,6 +126,7 @@ export default function AddChanda() {
         date: dateStr,
         receipt_book_id: receiptBookId || null,
         receipt_no: receiptNo ? Number(receiptNo) : null,
+        event: event || DEFAULT_EVENT,
       };
       if (editing) {
         await chandaApi.update(editing.id, payload);
@@ -174,6 +184,40 @@ export default function AddChanda() {
             data-testid="add-mobile-input"
             className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base"
           />
+        </div>
+
+        {/* Event / Purpose */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <Tag size={15} /> Event / Purpose
+          </label>
+          <div className="flex flex-wrap gap-1.5" data-testid="add-event-chips">
+            {availableEvents.map((ev) => (
+              <button
+                type="button"
+                key={ev}
+                onClick={() => setEvent(ev)}
+                data-testid={`add-event-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                className={`chip ${event === ev ? "chip-active" : ""}`}
+              >
+                {ev}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                const name = window.prompt("New event name (e.g. Navratri, Holi)");
+                const trimmed = (name || "").trim();
+                if (!trimmed) return;
+                if (!availableEvents.includes(trimmed)) setAvailableEvents((s) => [...s, trimmed]);
+                setEvent(trimmed);
+              }}
+              data-testid="add-event-new-btn"
+              className="chip"
+            >
+              + New
+            </button>
+          </div>
         </div>
 
         {/* Receipt Book + No */}

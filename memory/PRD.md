@@ -41,15 +41,20 @@ Build a simple, lightweight PWA-ready web app for Chanda/Donation collection man
 - ✅ **Book + Receipt No in exports (2026-09-11)**: Reports page column picker me `Book` aur `Receipt No` columns add ho gaye (checked by default). PDF/Excel/CSV — teeno me appear hote hain, order: Book, Receipt No, Name, Amount, Collector, Payment Mode, Status, Date.
 - ✅ **Authoritative refresh from user's Excel (2026-09-11)**: 78 chandas cleanly imported from `chanda-2026-09-11 (1).xlsx`. Book/Receipt filled where user provided; blanks preserved. Amount/name corrections applied (Shitlaprasad 1111, Satyam 1111, Chunnilal, Munn/Palak/Surabhi 0). 12 new Manoj entries assigned to Book 2 (81-92). Prem Jaiswal marked Collected. New collector: `Manoj`. Case-duplicate `Prince` merged into `prince`. Totals: Promised ₹1,14,763 · Received ₹65,963 · Pending ₹48,800.
 - ✅ **Financial mutation batch (2026-09-11)**: Receipt #74 collector bug fixed (Ramakant amit brijesh → prince, so prince's real total is ₹7,207 base). New member **Atul** added. Expenses: Monu ₹12k murti + ₹15k mandap; Mogli ₹25k mandap-token + ₹5k murti + ₹5k mandal certificate = ₹35k total; Atul ₹4,275 frame/lokhand (funded via Monu transfer); Ramakant ₹500 police (funded via prince transfer). Transfers: prince→Ramakant ₹500, prince→Atul ₹2k banner, Shrikant→Monu ₹2k (empties Shrikant), Monu→Atul ₹4,275. 3 new no-receipt Collected chandas: Dhaniram Gupta ₹2,100 → prince, Mr Chaurasiya (Brijesh ka dost) ₹1,500 → prince, Mintu Bhai ₹7,551 UPI → Monu. Final totals: 81 chandas, Promised ₹1,25,914 · Received ₹77,114 · Expenses paid ₹66,775 · Monu held **-₹5,472** (reimbursement due) · Mogli held +₹5,002.
+- ✅ **Event / Purpose tagging (2026-02-15)**: New `event` field on Chanda + Expense (default `Ganpati Mandap`). AddChanda/AddExpense pe Event chip selector + `+ New` button for on-the-fly events. ChandaList, Expenses, Reports pages me Event filter chips added. Dashboard pe naya "Event / Purpose Breakdown" card (per-event Received, Expenses, Net + drill-down modal with all chandas + expenses of that event). Reports PDF/Excel/CSV aur Expenses PDF/Excel exports me `Event` column added. Data migration: 6 Dahi Handi helper chandas (Raghav, Ramakant amit brijesh, pravin, Aashique Ali, Manoj, Mintu — ₹3,500 total) + ₹7,000 Dahi Handi expense marked as `Dahi Handi`; baaki 81 chandas + 9 expenses `Ganpati Mandap`. Verified totals: Ganpati Mandap Recv ₹77,114 / Exp ₹68,775 / Net **+₹8,339** · Dahi Handi Recv ₹3,500 / Exp ₹7,000 / Net **-₹3,500**.
 
 ## Persona
 Non-technical community/mandir/mohalla volunteer who collects donations for local events. Wants to add entries in seconds on mobile, see running totals, share PDF report with the committee.
 
 ## Backlog (Not built — future)
 - P1: Expenses module → net balance (Total Chanda − Total Expenses)
-- P1: Group/event tagging (e.g., "Ganesh Utsav 2026" vs "Diwali 2026")
+- ~~P1: Group/event tagging (e.g., "Ganesh Utsav 2026" vs "Diwali 2026")~~ ✅ Done 2026-02-15
+- P2: Sortable Member Table (Collected / Held / Reimb Due headers)
+- P2: Receipt Book progress/warning ("X/Y used" badge)
+- P2: Ganpati Mandap fund covers Mogli loss (trigger reimbursement if he goes negative)
 - P2: Recurring donors quick-repeat
 - P2: WhatsApp share of PDF / entry
 - P2: Google Drive direct-sync backup
 - P2: Offline-first with service worker + IndexedDB queue
 - P2: Multi-user PIN lock
+- P3: Year-wise historical reporting filter

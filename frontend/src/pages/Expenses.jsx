@@ -5,6 +5,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
+import { mergeEvents, colorForEvent } from "@/lib/events";
 
 const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
@@ -33,6 +34,7 @@ export default function Expenses() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState(location?.state?.initialCat || "All");
   const [mode, setMode] = useState("All");
+  const [eventF, setEventF] = useState(location?.state?.initialEvent || "All");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [showVoided, setShowVoided] = useState(false);
@@ -66,6 +68,7 @@ export default function Expenses() {
       .filter((e) => (showVoided ? true : !e.voided))
       .filter((e) => (cat === "All" ? true : e.category === cat))
       .filter((e) => (mode === "All" ? true : e.payment_mode === mode))
+      .filter((e) => (eventF === "All" ? true : (e.event || "Ganpati Mandap") === eventF))
       .filter((e) => (from ? e.date >= from : true))
       .filter((e) => (to ? e.date <= to : true))
       .filter((e) => {
@@ -73,7 +76,9 @@ export default function Expenses() {
         const qq = q.trim().toLowerCase();
         return e.description.toLowerCase().includes(qq) || (e.paid_by || "").toLowerCase().includes(qq);
       });
-  }, [entries, q, cat, mode, from, to, showVoided]);
+  }, [entries, q, cat, mode, eventF, from, to, showVoided]);
+
+  const availableEvents = useMemo(() => mergeEvents(entries.map((e) => e.event).filter(Boolean)), [entries]);
 
   const totalAmount = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.amount_paid || 0), 0);
   const totalBill = filtered.filter((e) => !e.voided).reduce((s, e) => s + (e.total_bill || 0), 0);
@@ -107,7 +112,7 @@ export default function Expenses() {
     } catch { toast.error("Failed"); }
   };
 
-  const clearFilters = () => { setQ(""); setCat("All"); setMode("All"); setFrom(""); setTo(""); };
+  const clearFilters = () => { setQ(""); setCat("All"); setMode("All"); setEventF("All"); setFrom(""); setTo(""); };
 
   return (
     <div className="space-y-4" data-testid="expenses-page">
@@ -170,6 +175,18 @@ export default function Expenses() {
             {MODES.map((m) => (
               <button key={m} onClick={() => setMode(m)} data-testid={`exp-mode-${m.replace(/\s/g,'-').toLowerCase()}`}
                 className={`chip ${mode === m ? "chip-active" : ""}`}>{m}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-slate-500 mb-1.5">Event / Purpose</div>
+          <div className="flex flex-wrap gap-1.5" data-testid="exp-filter-event-chips">
+            <button onClick={() => setEventF("All")} data-testid="exp-filter-event-all"
+              className={`chip ${eventF === "All" ? "chip-active" : ""}`}>All</button>
+            {availableEvents.map((ev) => (
+              <button key={ev} onClick={() => setEventF(ev)}
+                data-testid={`exp-filter-event-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                className={`chip ${eventF === ev ? "chip-active" : ""}`}>{ev}</button>
             ))}
           </div>
         </div>
@@ -259,6 +276,7 @@ export default function Expenses() {
                       <div className={`font-semibold text-slate-900 truncate ${e.voided ? "line-through" : ""}`}>{e.description}</div>
                       {e.voided && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold status-void">VOID</span>}
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${c.bg} ${c.text}`}>{e.category}</span>
+                      {e.event && (() => { const cc = colorForEvent(e.event); return <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${cc.bg} ${cc.text}`} data-testid={`exp-event-badge-${e.id}`}>{e.event}</span>; })()}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5 truncate">
                       {e.vendor ? <span className="text-slate-700 font-medium">{e.vendor} · </span> : null}

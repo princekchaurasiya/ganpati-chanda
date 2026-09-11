@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { expenseApi, memberApi } from "@/lib/api";
+import { expenseApi, memberApi, chandaApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
-import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, User } from "lucide-react";
+import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_EVENT, mergeEvents } from "@/lib/events";
 
 const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
@@ -24,11 +25,18 @@ export default function AddExpense() {
   const [mode, setMode] = useState(editing?.payment_mode || "Cash");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
   const [note, setNote] = useState(editing?.note || "");
+  const [event, setEvent] = useState(editing?.event || (editing?.category === "Dahi Handi" ? "Dahi Handi" : DEFAULT_EVENT));
+  const [availableEvents, setAvailableEvents] = useState(mergeEvents([editing?.event].filter(Boolean)));
   const [members, setMembers] = useState([]);
   const [saving, setSaving] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     memberApi.summary().then((r) => setMembers(r.members || [])).catch(() => {});
+    Promise.all([expenseApi.list(), chandaApi.list()]).then(([exps, chs]) => {
+      const used = [...(exps || []).map((e) => e.event), ...(chs || []).map((c) => c.event)].filter(Boolean);
+      setAvailableEvents(mergeEvents([...used, editing?.event].filter(Boolean)));
+    }).catch(() => {});
   }, []);
 
   const paidByMember = members.find((m) => m.name === paidBy);
@@ -74,6 +82,7 @@ export default function AddExpense() {
         payment_mode: mode,
         date: dateStr,
         note: note.trim() || null,
+        event: event || DEFAULT_EVENT,
       };
       if (editing) {
         await expenseApi.update(editing.id, payload);
@@ -118,6 +127,33 @@ export default function AddExpense() {
           <input type="text" value={vendor} onChange={(e) => setVendor(e.target.value)}
             placeholder="जैसे Murti Wale" data-testid="exp-vendor-input"
             className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base" />
+        </div>
+
+        <div>
+          <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <Sparkles size={15} /> Event / Purpose
+          </label>
+          <div className="flex flex-wrap gap-1.5" data-testid="exp-event-chips">
+            {availableEvents.map((ev) => (
+              <button type="button" key={ev} onClick={() => setEvent(ev)}
+                data-testid={`exp-event-${ev.replace(/\s+/g,'-').toLowerCase()}`}
+                className={`chip ${event === ev ? "chip-active" : ""}`}>{ev}</button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                const name = window.prompt("New event name (e.g. Navratri, Holi)");
+                const trimmed = (name || "").trim();
+                if (!trimmed) return;
+                if (!availableEvents.includes(trimmed)) setAvailableEvents((s) => [...s, trimmed]);
+                setEvent(trimmed);
+              }}
+              data-testid="exp-event-new-btn"
+              className="chip"
+            >
+              + New
+            </button>
+          </div>
         </div>
 
         <div>
