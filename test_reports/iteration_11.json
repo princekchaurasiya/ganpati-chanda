@@ -1,0 +1,26 @@
+{
+  "summary": "Backend math reconciliation for latest mutations. BUG FIX for receipt #74 verified — Sejal kanaujiya Rs.251 (Book 2 / #74) now has collector='prince'. Expenses (7 rows / Rs.66,775) and Transfers (4 rows / Rs.8,775) match spec exactly, item-by-item. Dhaniram Gupta (2100) and Mr Chaurasiya (Brijesh bhai ka dost, 1500) inserted as no-receipt Collected chandas under prince; prince total across Collected+Pending = Rs.10,807 (matches expected). CRITICAL: the third new no-receipt UPI chanda 'Mintu Bhai' Rs.7,551 to Monu is MISSING from DB — never inserted. Because of this: /api/dashboard chanda.count_total=80 (expected 81), total_promised=118,363 (expected 125,914, diff 7,551), total_received=69,563 (expected 77,114, diff 7,551), Monu total_received=16,252 (expected 23,803, diff 7,551), Monu current_held=-13,023 (expected -5,472, diff 7,551). Every other member (Atul held=2000 exp=4275 t_in=6275, Mogli held=5002 exp=35000, Shrikant held=0, Ramakant held=1504 exp=500, prince held=7305 t_out=2500 received=9805) matches spec exactly. Frontend smoke: /members Monu card correctly renders red '-₹13,023' held; /reports CSV export produces 80 rows (matches backend, would be 81 if Mintu present) with 10 blank-receipt rows (8 previous blanks + 2 new prince no-receipt = 10; would be 11 with Mintu).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/chanda", "issue": "Missing chanda entry: 'Mintu Bhai' Rs.7,551 UPI Collected to collector=Monu (no receipt). apply_updates*.py contains no reference to 'Mintu' or 7551. As a result Monu's received is short by 7551 and dashboard totals are short by 7551. All downstream member math for Monu is off by 7551.", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/test_reports/downloads/reports_iter11.csv"],
+  "action_items": [
+    "Main agent: insert the missing chanda entry — donor 'Mintu Bhai', amount=7551, received_amount=7551, collector='Monu', payment_mode='UPI', status='Collected', receipt_book_id=null, receipt_no=null. After insertion re-verify: dashboard.count_total=81, total_promised=125914, total_received=77114, Monu.total_received=23803, Monu.current_held=-5472, CSV export 81 rows / 11 blank-receipt rows."
+  ],
+  "critical_code_review_comments": [
+    "Backend aggregations in /api/dashboard are consistent and mathematically correct given current DB state — the discrepancy is a data-mutation miss, not a bug in aggregation logic.",
+    "apply_updates.py / apply_updates2.py have no idempotency guard visible; if re-run they could double-insert. Consider unique constraint or upsert-by-natural-key for future batch scripts.",
+    "Members endpoint properly excludes _id and returns clean derived fields (current_held handles negative correctly)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "90%", "frontend": "100%"},
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Only the Mintu Bhai 7551 UPI Collected chanda is missing. Once main agent adds it (via a small mutation script or POST /api/chanda), re-run: curl /api/dashboard and confirm count_total=81, total_promised=125914, total_received=77114, and members[Monu].total_received=23803, current_held=-5472. CSV row count should become 81 with 11 blanks.",
+  "rca of the issue": "apply_updates2.py implemented the Dhaniram + Mr Chaurasiya no-receipt entries and all 7 expenses + 4 transfers, but the Mintu Bhai UPI Rs.7,551 collection to Monu was omitted from the script. grep on apply_updates*.py for 'Mintu' or '7551' returns 0 matches, confirming the miss. Fix: append a single insert (or POST /api/chanda) with the values above."
+}
