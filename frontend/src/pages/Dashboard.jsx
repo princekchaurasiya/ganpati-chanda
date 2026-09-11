@@ -70,7 +70,7 @@ export default function Dashboard() {
           {formatINR(stats.balance)}
         </div>
         <div className="mt-1 text-xs text-slate-600 font-num">
-          Received {formatINR(ch.total_received)} − Paid {formatINR(ex.total_paid)} · <span className="text-teal-700 font-medium">tap to tally</span>
+          Received {formatINR(ch.total_received)} − Group Paid {formatINR(mp.total_paid_to_expenses_group)} · <span className="text-teal-700 font-medium">tap to tally</span>
         </div>
       </button>
 
@@ -307,7 +307,42 @@ function StatModal({ kind, onClose, chandas, expenses, reimbs, members, reload }
     "chanda-pending": { title: "Pending Chanda", body: () => <ChandaRows entries={active.filter((c) => c.status === "Pending")} onEdit={goEditChanda} reload={reload} showReceive />, deepLink: "/list?status=Pending" },
     "expenses-all": { title: "All Expenses", body: () => <ExpenseRows entries={activeExp} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
     "expenses-payable": { title: "Payable Bills", body: () => <ExpenseRows entries={activeExp.filter((e) => (e.total_bill - e.amount_paid) > 0.01)} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
-    "members-cash": { title: "Cash Held by Members", body: () => <MemberRows members={members.filter((m) => m.current_held > 0.01)} onOpen={(m) => { onClose(); nav(`/members/${encodeURIComponent(m.name)}`); }} field="current_held" />, deepLink: "/members" },
+    "members-cash": {
+      title: "Cash Held by Members",
+      body: () => {
+        const heldMembers = members.filter((m) => Math.abs(m.current_held) > 0.01);
+        const pos = heldMembers.filter((m) => m.current_held > 0).reduce((s, m) => s + m.current_held, 0);
+        const neg = heldMembers.filter((m) => m.current_held < 0).reduce((s, m) => s + m.current_held, 0);
+        const net = pos + neg;
+        return (
+          <div>
+            <div className="mx-2 my-2 rounded-xl bg-slate-50 p-3 text-xs" data-testid="members-cash-summary">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600">Members holding cash</span>
+                <span className="font-num font-bold text-emerald-700">+{formatINR(pos)}</span>
+              </div>
+              {neg < -0.01 && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-slate-600">Group owes (negative held)</span>
+                  <span className="font-num font-bold text-red-700">{formatINR(neg)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
+                <span className="text-slate-800 font-semibold">Net cash with members</span>
+                <span className={`font-num font-extrabold ${net >= 0 ? "text-teal-800" : "text-red-800"}`}>{formatINR(net)}</span>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Should match Balance tile</div>
+            </div>
+            <MemberRows
+              members={heldMembers.sort((a, b) => b.current_held - a.current_held)}
+              onOpen={(m) => { onClose(); nav(`/members/${encodeURIComponent(m.name)}`); }}
+              field="current_held"
+            />
+          </div>
+        );
+      },
+      deepLink: "/members",
+    },
     "advances-personal": { title: "Personal Contributions", body: () => <MemberRows members={members.filter((m) => m.personal_contribution > 0.01)} onOpen={(m) => { onClose(); nav(`/members/${encodeURIComponent(m.name)}`); }} field="personal_contribution" />, deepLink: "/members" },
     "advances-reimbursed": { title: "Reimbursements Paid", body: () => <ReimbRows entries={activeReimb} />, deepLink: "/members" },
     "advances-outstanding": { title: "Reimbursement Outstanding", body: () => <MemberRows members={members.filter((m) => m.reimbursement_due > 0.01)} onOpen={(m) => { onClose(); nav("/reimburse/add", { state: { to_member: m.name, amount: m.reimbursement_due } }); }} field="reimbursement_due" cta="Reimburse" />, deepLink: "/reimburse/add" },
