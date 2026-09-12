@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi, eventTransferApi } from "@/lib/api";
+import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi, eventTransferApi, transferApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft, CalendarDays, Repeat, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [chandas, setChandas] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [reimbs, setReimbs] = useState([]);
+  const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalStack, setModalStack] = useState([]);
   const modalKind = modalStack.length ? modalStack[modalStack.length - 1] : null;
@@ -36,13 +37,14 @@ export default function Dashboard() {
   const load = async () => {
     setLoading(true);
     try {
-      const [s, cList, eList, rList] = await Promise.all([
-        dashboardApi.get(), chandaApi.list(), expenseApi.list(), reimbursementApi.list(),
+      const [s, cList, eList, rList, tList] = await Promise.all([
+        dashboardApi.get(), chandaApi.list(), expenseApi.list(), reimbursementApi.list(), transferApi.list(),
       ]);
       setStats(s);
       setChandas(cList);
       setExpenses(eList);
       setReimbs(rList);
+      setTransfers(tList);
     } finally { setLoading(false); }
   };
 
@@ -328,6 +330,7 @@ export default function Dashboard() {
           chandas={chandas}
           expenses={expenses}
           reimbs={reimbs}
+          transfers={transfers}
           members={members}
           stats={stats}
           reload={load}
@@ -368,7 +371,7 @@ function MiniStat({ label, value, sub, color, testid, onClick }) {
   return <div className={base} data-testid={testid}>{body}</div>;
 }
 
-function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimbs, members, stats, reload }) {
+function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimbs, transfers, members, stats, reload }) {
   const nav = useNavigate();
   const active = chandas.filter((c) => !c.voided);
   const activeExp = expenses.filter((e) => !e.voided);
@@ -456,17 +459,17 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
           {mem && (
             <div className="mx-2 mb-2 rounded-xl bg-slate-50 p-3 grid grid-cols-2 gap-2 text-xs" data-testid={`member-modal-summary-${name}`}>
               <SumCell testid={`sumcell-collected-${name}`} label="Collected" value={formatINR(mem.total_received)} tone="emerald"
-                onClick={() => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "collected" } }); }} />
+                onClick={() => switchKind(`member-collected:${name}`)} />
               <SumCell testid={`sumcell-held-${name}`} label="Cash Held" value={formatINR(mem.current_held)} tone={mem.current_held < -0.01 ? "red" : mem.current_held > 0.01 ? "teal" : "slate"}
-                onClick={() => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "held" } }); }} />
+                onClick={() => switchKind(`member-held:${name}`)} />
               <SumCell testid={`sumcell-paid-${name}`} label="Paid to Expenses" value={formatINR(mem.paid_to_expenses)} tone="red"
-                onClick={mem.paid_to_expenses > 0.01 ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "group_paid" } }); } : null} />
+                onClick={mem.paid_to_expenses > 0.01 ? () => switchKind(`member-paid:${name}`) : null} />
               <SumCell testid={`sumcell-transfers-${name}`} label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 ? "—" : ""}`} tone="slate"
-                onClick={(mem.transferred_out > 0.01 || mem.transferred_in > 0.01) ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: mem.transferred_out >= mem.transferred_in ? "trf_out" : "trf_in" } }); } : null} />
+                onClick={(mem.transferred_out > 0.01 || mem.transferred_in > 0.01) ? () => switchKind(`member-transfers:${name}`) : null} />
               {(mem.personal_contribution > 0.01 || mem.reimbursement_due > 0.01) && (
                 <>
                   <SumCell testid={`sumcell-personal-${name}`} label="Personal Contrib" value={formatINR(mem.personal_contribution)} tone="amber"
-                    onClick={mem.personal_contribution > 0.01 ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "personal" } }); } : null} />
+                    onClick={mem.personal_contribution > 0.01 ? () => switchKind(`member-personal:${name}`) : null} />
                   <SumCell testid={`sumcell-reimb-${name}`} label="Reimb Due" value={formatINR(mem.reimbursement_due)} tone={mem.reimbursement_due > 0.01 ? "red" : "slate"}
                     onClick={mem.reimbursement_due > 0.01 ? () => { onClose(); nav("/reimburse/add", { state: { to_member: name, amount: mem.reimbursement_due } }); } : null} />
                 </>
@@ -774,6 +777,133 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
     };
   }
 
+  // ===== Member SumCell drill-downs (nested inside `member:<name>` modal stack) =====
+  if (!conf && kind && kind.startsWith("member-collected:")) {
+    const mname = kind.slice("member-collected:".length);
+    const mine = active.filter((c) => c.collector === mname && c.status === "Collected");
+    const pending = active.filter((c) => c.collector === mname && c.status === "Pending");
+    const collectedTotal = mine.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
+    const pendingTotal = pending.reduce((s, c) => s + (c.amount || 0), 0);
+    conf = {
+      title: `${mname} — Collected Chanda`,
+      body: () => (
+        <div>
+          <div className="px-3 pb-2 pt-1 flex items-center justify-between text-xs">
+            <span className="text-slate-500">{mine.length} collected · {pending.length} pending</span>
+            <span className="font-num font-bold text-emerald-700">{formatINR(collectedTotal)}</span>
+          </div>
+          <ChandaRows entries={mine} onEdit={goEditChanda} reload={reload} />
+          {pending.length > 0 && (
+            <>
+              <div className="px-3 pt-4 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-2">Pending · {formatINR(pendingTotal)}</div>
+              <ChandaRows entries={pending} onEdit={goEditChanda} reload={reload} />
+            </>
+          )}
+        </div>
+      ),
+      deepLink: `/list?collector=${encodeURIComponent(mname)}&status=Collected`,
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("member-held:")) {
+    const mname = kind.slice("member-held:".length);
+    const mem = members.find((m) => m.name === mname);
+    if (mem) {
+      conf = {
+        title: `${mname} — Cash Held Tally`,
+        body: () => (
+          <div className="p-3 space-y-2 text-sm" data-testid={`held-tally-${mname}`}>
+            <TallyRow label="Received (own collections)" amount={mem.total_received} tone="emerald" />
+            {mem.transferred_in > 0 && <TallyRow label="+ Received from others" amount={mem.transferred_in} tone="blue" />}
+            {mem.transferred_out > 0 && <TallyRow label="− Transferred out" amount={-mem.transferred_out} tone="orange" />}
+            {(mem.group_funds_paid || 0) > 0 && <TallyRow label="− Group funds paid (expenses)" amount={-(mem.group_funds_paid || 0)} tone="red" />}
+            {(mem.reimbursement_paid_out || 0) > 0 && <TallyRow label="− Reimbursements paid to others" amount={-(mem.reimbursement_paid_out || 0)} tone="orange" />}
+            <div className={`rounded-xl p-3 flex items-center justify-between mt-2 ${mem.current_held < 0 ? "bg-red-600" : "bg-teal-600"} text-white`}>
+              <span className="font-semibold">Currently Held</span>
+              <span className="font-num text-xl font-extrabold">{formatINR(mem.current_held)}</span>
+            </div>
+          </div>
+        ),
+        deepLink: `/members/${encodeURIComponent(mname)}`,
+      };
+    }
+  }
+
+  if (!conf && kind && kind.startsWith("member-paid:")) {
+    const mname = kind.slice("member-paid:".length);
+    const mine = activeExp.filter((e) => e.paid_by === mname && (e.group_funds_used || 0) > 0);
+    const total = mine.reduce((s, e) => s + (e.group_funds_used || 0), 0);
+    conf = {
+      title: `${mname} — Group Funds Paid`,
+      body: () => (
+        <div>
+          <div className="px-3 pb-2 pt-1 flex items-center justify-between text-xs">
+            <span className="text-slate-500">{mine.length} expense{mine.length === 1 ? "" : "s"}</span>
+            <span className="font-num font-bold text-red-700">-{formatINR(total)}</span>
+          </div>
+          <ExpenseRows entries={mine} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} amountField="group_funds_used" />
+        </div>
+      ),
+      deepLink: `/expenses`,
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("member-transfers:")) {
+    const mname = kind.slice("member-transfers:".length);
+    const activeTrf = (transfers || []).filter((t) => !t.voided);
+    const outs = activeTrf.filter((t) => t.from_member === mname);
+    const ins = activeTrf.filter((t) => t.to_member === mname);
+    const outTotal = outs.reduce((s, t) => s + t.amount, 0);
+    const inTotal = ins.reduce((s, t) => s + t.amount, 0);
+    conf = {
+      title: `${mname} — Transfers`,
+      body: () => (
+        <div>
+          <div className="mx-2 my-2 rounded-xl bg-slate-50 p-3 grid grid-cols-2 gap-2 text-xs" data-testid={`transfers-summary-${mname}`}>
+            <SumCell label="Sent Out" value={`-${formatINR(outTotal)}`} tone="red" />
+            <SumCell label="Received" value={`+${formatINR(inTotal)}`} tone="emerald" />
+          </div>
+          {outs.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Sent Out · {outs.length}</div>
+              <TransferListRows entries={outs} me={mname} direction="out" nav={nav} onClose={onClose} />
+            </>
+          )}
+          {ins.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-2">Received · {ins.length}</div>
+              <TransferListRows entries={ins} me={mname} direction="in" nav={nav} onClose={onClose} />
+            </>
+          )}
+          {outs.length === 0 && ins.length === 0 && (
+            <div className="p-6 text-center text-slate-500 text-sm">No transfers.</div>
+          )}
+        </div>
+      ),
+      deepLink: `/members/${encodeURIComponent(mname)}`,
+    };
+  }
+
+  if (!conf && kind && kind.startsWith("member-personal:")) {
+    const mname = kind.slice("member-personal:".length);
+    const mine = activeExp.filter((e) => e.paid_by === mname && (e.personal_contribution || 0) > 0);
+    const total = mine.reduce((s, e) => s + (e.personal_contribution || 0), 0);
+    const mem = members.find((m) => m.name === mname);
+    conf = {
+      title: `${mname} — Personal Contribution`,
+      body: () => (
+        <div>
+          <div className="px-3 pb-2 pt-1 flex items-center justify-between text-xs">
+            <span className="text-slate-500">{mine.length} expense{mine.length === 1 ? "" : "s"}{mem && mem.reimbursement_due > 0.01 ? ` · ${formatINR(mem.reimbursement_due)} due` : ""}</span>
+            <span className="font-num font-bold text-amber-700">{formatINR(total)}</span>
+          </div>
+          <ExpenseRows entries={mine} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} amountField="personal_contribution" />
+        </div>
+      ),
+      deepLink: `/expenses`,
+    };
+  }
+
   if (!conf && kind && kind.startsWith("cover-loss:")) {
     const targetEv = kind.slice(11);
     conf = {
@@ -869,7 +999,7 @@ function ChandaRows({ entries, onEdit, reload, showReceive }) {
   );
 }
 
-function ExpenseRows({ entries, onEdit }) {
+function ExpenseRows({ entries, onEdit, amountField }) {
   if (entries.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">No expenses.</div>;
   return (
     <div className="divide-y divide-slate-100">
@@ -888,7 +1018,7 @@ function ExpenseRows({ entries, onEdit }) {
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="font-num font-bold text-sm text-red-700">-{formatINR(e.amount_paid)}</div>
+              <div className="font-num font-bold text-sm text-red-700">-{formatINR(amountField ? (e[amountField] || 0) : e.amount_paid)}</div>
               <div className="text-[10px] text-slate-500 font-num">bill {formatINR(e.total_bill)}</div>
             </div>
             <button onClick={() => onEdit(e)} data-testid={`modal-edit-exp-${e.id}`}
@@ -901,6 +1031,40 @@ function ExpenseRows({ entries, onEdit }) {
     </div>
   );
 }
+
+function TallyRow({ label, amount, tone }) {
+  const toneMap = { emerald: "text-emerald-700", blue: "text-blue-700", orange: "text-orange-700", red: "text-red-700", slate: "text-slate-700" };
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-1.5 last:border-0">
+      <span className="text-slate-700">{label}</span>
+      <span className={`font-num font-bold ${toneMap[tone] || toneMap.slate}`}>{amount >= 0 ? "+" : ""}{formatINR(amount)}</span>
+    </div>
+  );
+}
+
+function TransferListRows({ entries, direction, nav, onClose }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="divide-y divide-slate-100">
+      {entries.map((t) => (
+        <div key={t.id} className="px-3 py-2 flex items-center gap-2" data-testid={`modal-trf-${t.id}`}>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-slate-900 truncate">
+              {direction === "out" ? <>→ {t.to_member}</> : <>← {t.from_member}</>}
+            </div>
+            <div className="text-[10px] text-slate-500 truncate">{formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}</div>
+          </div>
+          <div className={`font-num font-bold text-sm shrink-0 ${direction === "out" ? "text-orange-700" : "text-blue-700"}`}>{direction === "out" ? "-" : "+"}{formatINR(t.amount)}</div>
+          <button onClick={() => { onClose(); nav("/transfer/add", { state: { entry: t } }); }} data-testid={`modal-trf-edit-${t.id}`}
+            className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center" title="Edit">
+            <Pencil size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SumCell({ label, value, tone, onClick, testid }) {
   const toneMap = {
     emerald: "text-emerald-700",
