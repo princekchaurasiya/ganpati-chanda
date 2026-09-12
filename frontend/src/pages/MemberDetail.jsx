@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { memberApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift, ChevronRight, X } from "lucide-react";
@@ -8,10 +8,22 @@ import { colorForEvent } from "@/lib/events";
 export default function MemberDetail() {
   const { name } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(null);
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalKind, setModalKind] = useState(null);
+
+  // Auto-open a specific drill-down modal if the caller passed `state.focus`
+  // (e.g. Dashboard SumCell click). Cleared after first render so back-navigation
+  // doesn't re-trigger the modal.
+  useEffect(() => {
+    if (!loading && location?.state?.focus) {
+      setModalKind(location.state.focus);
+      nav(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   useEffect(() => {
     Promise.all([

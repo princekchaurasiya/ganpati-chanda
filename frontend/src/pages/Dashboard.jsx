@@ -455,14 +455,20 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
         <div>
           {mem && (
             <div className="mx-2 mb-2 rounded-xl bg-slate-50 p-3 grid grid-cols-2 gap-2 text-xs" data-testid={`member-modal-summary-${name}`}>
-              <SumCell label="Collected" value={formatINR(mem.total_received)} tone="emerald" />
-              <SumCell label="Cash Held" value={formatINR(mem.current_held)} tone={mem.current_held < -0.01 ? "red" : mem.current_held > 0.01 ? "teal" : "slate"} />
-              <SumCell label="Paid to Expenses" value={formatINR(mem.paid_to_expenses)} tone="red" />
-              <SumCell label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 ? "—" : ""}`} tone="slate" />
+              <SumCell testid={`sumcell-collected-${name}`} label="Collected" value={formatINR(mem.total_received)} tone="emerald"
+                onClick={() => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "collected" } }); }} />
+              <SumCell testid={`sumcell-held-${name}`} label="Cash Held" value={formatINR(mem.current_held)} tone={mem.current_held < -0.01 ? "red" : mem.current_held > 0.01 ? "teal" : "slate"}
+                onClick={() => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "held" } }); }} />
+              <SumCell testid={`sumcell-paid-${name}`} label="Paid to Expenses" value={formatINR(mem.paid_to_expenses)} tone="red"
+                onClick={mem.paid_to_expenses > 0.01 ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "group_paid" } }); } : null} />
+              <SumCell testid={`sumcell-transfers-${name}`} label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 ? "—" : ""}`} tone="slate"
+                onClick={(mem.transferred_out > 0.01 || mem.transferred_in > 0.01) ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: mem.transferred_out >= mem.transferred_in ? "trf_out" : "trf_in" } }); } : null} />
               {(mem.personal_contribution > 0.01 || mem.reimbursement_due > 0.01) && (
                 <>
-                  <SumCell label="Personal Contrib" value={formatINR(mem.personal_contribution)} tone="amber" />
-                  <SumCell label="Reimb Due" value={formatINR(mem.reimbursement_due)} tone={mem.reimbursement_due > 0.01 ? "red" : "slate"} />
+                  <SumCell testid={`sumcell-personal-${name}`} label="Personal Contrib" value={formatINR(mem.personal_contribution)} tone="amber"
+                    onClick={mem.personal_contribution > 0.01 ? () => { onClose(); nav(`/members/${encodeURIComponent(name)}`, { state: { focus: "personal" } }); } : null} />
+                  <SumCell testid={`sumcell-reimb-${name}`} label="Reimb Due" value={formatINR(mem.reimbursement_due)} tone={mem.reimbursement_due > 0.01 ? "red" : "slate"}
+                    onClick={mem.reimbursement_due > 0.01 ? () => { onClose(); nav("/reimburse/add", { state: { to_member: name, amount: mem.reimbursement_due } }); } : null} />
                 </>
               )}
             </div>
@@ -895,7 +901,7 @@ function ExpenseRows({ entries, onEdit }) {
     </div>
   );
 }
-function SumCell({ label, value, tone }) {
+function SumCell({ label, value, tone, onClick, testid }) {
   const toneMap = {
     emerald: "text-emerald-700",
     red: "text-red-700",
@@ -903,12 +909,24 @@ function SumCell({ label, value, tone }) {
     amber: "text-amber-700",
     slate: "text-slate-900",
   };
-  return (
-    <div className="rounded-lg bg-white px-2.5 py-1.5 border border-slate-100">
-      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">{label}</div>
+  const inner = (
+    <>
+      <div className="flex items-center justify-between gap-1">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">{label}</div>
+        {onClick && <ChevronRight size={10} className="text-slate-400 shrink-0" />}
+      </div>
       <div className={`text-sm font-bold font-num ${toneMap[tone] || toneMap.slate}`}>{value}</div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} data-testid={testid}
+        className="rounded-lg bg-white px-2.5 py-1.5 border border-slate-100 text-left hover:border-teal-300 hover:bg-teal-50/50 active:scale-[0.98] transition focus:outline-none focus:ring-2 focus:ring-teal-400">
+        {inner}
+      </button>
+    );
+  }
+  return <div className="rounded-lg bg-white px-2.5 py-1.5 border border-slate-100" data-testid={testid}>{inner}</div>;
 }
 
 
