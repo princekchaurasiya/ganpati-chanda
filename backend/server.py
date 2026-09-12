@@ -330,6 +330,14 @@ async def _resolve_receipt_book_snapshot(book_id: Optional[str], receipt_no: Opt
     return book["name"], receipt_no
 
 
+def _year_query(year: Optional[str], date_field: str = "date"):
+    """Return a Mongo filter for a given year, e.g. {'date': {'$regex': '^2026-'}}.
+    Empty dict if year is None or 'all'."""
+    if year and year != "all":
+        return {date_field: {"$regex": f"^{year}-"}}
+    return {}
+
+
 # ============= Chanda Routes =============
 @api_router.get("/")
 async def root():
@@ -355,8 +363,8 @@ async def create_chanda(payload: ChandaCreate):
 
 
 @api_router.get("/chanda", response_model=List[Chanda])
-async def list_chandas():
-    docs = await db.chandas.find({}, {"_id": 0}).sort("date", -1).to_list(50000)
+async def list_chandas(year: Optional[str] = None):
+    docs = await db.chandas.find(_year_query(year), {"_id": 0}).sort("date", -1).to_list(50000)
     for d in docs:
         if "received_amount" not in d:
             d["received_amount"] = d["amount"] if d.get("status") == "Collected" else 0
@@ -596,8 +604,8 @@ async def create_expense(payload: ExpenseCreate):
 
 
 @api_router.get("/expenses", response_model=List[Expense])
-async def list_expenses():
-    docs = await db.expenses.find({}, {"_id": 0}).sort("date", -1).to_list(10000)
+async def list_expenses(year: Optional[str] = None):
+    docs = await db.expenses.find(_year_query(year), {"_id": 0}).sort("date", -1).to_list(10000)
     for d in docs:
         if "total_bill" not in d:
             d["total_bill"] = d.get("amount", 0)
@@ -676,8 +684,8 @@ async def create_transfer(payload: TransferCreate):
 
 
 @api_router.get("/transfers", response_model=List[Transfer])
-async def list_transfers():
-    return await db.transfers.find({}, {"_id": 0}).sort("date", -1).to_list(10000)
+async def list_transfers(year: Optional[str] = None):
+    return await db.transfers.find(_year_query(year), {"_id": 0}).sort("date", -1).to_list(10000)
 
 
 @api_router.put("/transfers/{transfer_id}", response_model=Transfer)
@@ -747,8 +755,8 @@ async def create_reimbursement(payload: ReimbursementCreate):
 
 
 @api_router.get("/reimbursements", response_model=List[Reimbursement])
-async def list_reimbursements():
-    return await db.reimbursements.find({}, {"_id": 0}).sort("date", -1).to_list(10000)
+async def list_reimbursements(year: Optional[str] = None):
+    return await db.reimbursements.find(_year_query(year), {"_id": 0}).sort("date", -1).to_list(10000)
 
 
 @api_router.put("/reimbursements/{reimb_id}", response_model=Reimbursement)
@@ -806,8 +814,8 @@ async def delete_reimbursement(reimb_id: str):
 
 # ============= Event Transfer Routes =============
 @api_router.get("/event-transfers", response_model=List[EventTransfer])
-async def list_event_transfers():
-    return await db.event_transfers.find({}, {"_id": 0}).sort("date", -1).to_list(1000)
+async def list_event_transfers(year: Optional[str] = None):
+    return await db.event_transfers.find(_year_query(year), {"_id": 0}).sort("date", -1).to_list(1000)
 
 
 @api_router.post("/event-transfers", response_model=EventTransfer)
@@ -849,38 +857,39 @@ async def delete_event_transfer(et_id: str):
 
 
 # ============= Member Summary =============
-async def build_member_summaries():
+async def build_member_summaries(year: Optional[str] = None):
+    yq = _year_query(year)
     collectors = await db.collectors.find({}, {"_id": 0}).to_list(1000)
     names = set(c["name"] for c in collectors)
-    for d in await db.chandas.find({"voided": {"$ne": True}}, {"_id": 0, "collector": 1}).to_list(50000):
+    for d in await db.chandas.find({"voided": {"$ne": True}, **yq}, {"_id": 0, "collector": 1}).to_list(50000):
         names.add(d["collector"])
-    for d in await db.expenses.find({"voided": {"$ne": True}}, {"_id": 0, "paid_by": 1}).to_list(50000):
+    for d in await db.expenses.find({"voided": {"$ne": True}, **yq}, {"_id": 0, "paid_by": 1}).to_list(50000):
         if d.get("paid_by"): names.add(d["paid_by"])
-    for d in await db.transfers.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000):
+    for d in await db.transfers.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000):
         names.add(d["from_member"]); names.add(d["to_member"])
-    for d in await db.reimbursements.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000):
+    for d in await db.reimbursements.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000):
         names.add(d["paid_by"]); names.add(d["to_member"])
 
     result = []
     for name in sorted(names):
-        chandas = await db.chandas.find({"voided": {"$ne": True}, "collector": name}, {"_id": 0}).to_list(50000)
+        chandas = await db.chandas.find({"voided": {"$ne": True}, "collector": name, **yq}, {"_id": 0}).to_list(50000)
         total_promised = sum(c["amount"] for c in chandas)
         total_received = sum(c.get("received_amount", 0) for c in chandas)
         total_pending = total_promised - total_received
         count_collections = len(chandas)
 
-        t_out = await db.transfers.find({"voided": {"$ne": True}, "from_member": name}, {"_id": 0}).to_list(50000)
+        t_out = await db.transfers.find({"voided": {"$ne": True}, "from_member": name, **yq}, {"_id": 0}).to_list(50000)
         transferred_out = sum(t["amount"] for t in t_out)
-        t_in = await db.transfers.find({"voided": {"$ne": True}, "to_member": name}, {"_id": 0}).to_list(50000)
+        t_in = await db.transfers.find({"voided": {"$ne": True}, "to_member": name, **yq}, {"_id": 0}).to_list(50000)
         transferred_in = sum(t["amount"] for t in t_in)
 
-        exps = await db.expenses.find({"voided": {"$ne": True}, "paid_by": name}, {"_id": 0}).to_list(50000)
+        exps = await db.expenses.find({"voided": {"$ne": True}, "paid_by": name, **yq}, {"_id": 0}).to_list(50000)
         group_funds_paid = sum(e.get("group_funds_used", 0) for e in exps)
         personal_contribution = sum(e.get("personal_contribution", 0) for e in exps)
 
-        r_out = await db.reimbursements.find({"voided": {"$ne": True}, "paid_by": name}, {"_id": 0}).to_list(50000)
+        r_out = await db.reimbursements.find({"voided": {"$ne": True}, "paid_by": name, **yq}, {"_id": 0}).to_list(50000)
         reimbursement_paid_out = sum(r["amount"] for r in r_out)
-        r_in = await db.reimbursements.find({"voided": {"$ne": True}, "to_member": name}, {"_id": 0}).to_list(50000)
+        r_in = await db.reimbursements.find({"voided": {"$ne": True}, "to_member": name, **yq}, {"_id": 0}).to_list(50000)
         reimbursement_received = sum(r["amount"] for r in r_in)
 
         current_held = received_group_calc = total_received - transferred_out + transferred_in - group_funds_paid - reimbursement_paid_out
@@ -906,31 +915,51 @@ async def build_member_summaries():
 
 
 @api_router.get("/members/summary")
-async def members_summary():
-    return {"members": await build_member_summaries()}
+async def members_summary(year: Optional[str] = None):
+    return {"members": await build_member_summaries(year)}
 
 
 @api_router.get("/members/{name}")
-async def member_detail(name: str):
-    chandas = await db.chandas.find({"collector": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    t_out = await db.transfers.find({"from_member": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    t_in = await db.transfers.find({"to_member": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    exps = await db.expenses.find({"paid_by": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    r_out = await db.reimbursements.find({"paid_by": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    r_in = await db.reimbursements.find({"to_member": name}, {"_id": 0}).sort("date", -1).to_list(50000)
-    summaries = await build_member_summaries()
+async def member_detail(name: str, year: Optional[str] = None):
+    yq = _year_query(year)
+    chandas = await db.chandas.find({"collector": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    t_out = await db.transfers.find({"from_member": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    t_in = await db.transfers.find({"to_member": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    exps = await db.expenses.find({"paid_by": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    r_out = await db.reimbursements.find({"paid_by": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    r_in = await db.reimbursements.find({"to_member": name, **yq}, {"_id": 0}).sort("date", -1).to_list(50000)
+    summaries = await build_member_summaries(year)
     summary = next((s for s in summaries if s["name"] == name), None)
     if summary is None:
-        raise HTTPException(404, "Member not found in any transaction")
+        # Return an empty scaffold instead of 404 so donor-only names still render
+        summary = {"name": name, "total_promised": 0, "total_received": 0, "total_pending": 0,
+                   "count_collections": 0, "transferred_out": 0, "transferred_in": 0,
+                   "group_funds_paid": 0, "personal_contribution": 0,
+                   "reimbursement_paid_out": 0, "reimbursement_received": 0,
+                   "reimbursement_due": 0, "paid_to_expenses": 0, "current_held": 0}
     return {
         "summary": summary,
         "chandas": chandas,
         "transfers_out": t_out,
         "transfers_in": t_in,
         "expenses": exps,
-        "reimbursements_out": r_out,  # reimbursements this member paid to others
-        "reimbursements_in": r_in,    # reimbursements this member received
+        "reimbursements_out": r_out,
+        "reimbursements_in": r_in,
     }
+
+
+@api_router.get("/years")
+async def list_years():
+    """Return distinct years present across all transaction collections."""
+    years = set()
+    for coll in ["chandas", "expenses", "transfers", "reimbursements", "event_transfers"]:
+        async for d in db[coll].find({}, {"_id": 0, "date": 1}):
+            date = d.get("date") or ""
+            if len(date) >= 4 and date[:4].isdigit():
+                years.add(date[:4])
+    from datetime import datetime as _dt
+    years.add(str(_dt.utcnow().year))  # ensure current year is always selectable
+    return {"years": sorted(years, reverse=True)}
 
 
 # ============= Ledger =============
@@ -982,11 +1011,12 @@ async def ledger():
 
 # ============= Dashboard =============
 @api_router.get("/dashboard")
-async def dashboard():
-    chandas = await db.chandas.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000)
-    expenses = await db.expenses.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000)
-    transfers = await db.transfers.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000)
-    reimbs = await db.reimbursements.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(50000)
+async def dashboard(year: Optional[str] = None):
+    yq = _year_query(year)
+    chandas = await db.chandas.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000)
+    expenses = await db.expenses.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000)
+    transfers = await db.transfers.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000)
+    reimbs = await db.reimbursements.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(50000)
 
     total_promised = sum(c["amount"] for c in chandas)
     total_received = sum(c.get("received_amount", 0) for c in chandas)
@@ -1033,7 +1063,7 @@ async def dashboard():
         b["expense_bill"] += e.get("total_bill", 0)
         b["expense_count"] += 1
     # Fold in cross-event fund transfers (Ganpati fund covers Dahi Handi loss, etc.)
-    event_transfers = await db.event_transfers.find({"voided": {"$ne": True}}, {"_id": 0}).to_list(1000)
+    event_transfers = await db.event_transfers.find({"voided": {"$ne": True}, **yq}, {"_id": 0}).to_list(1000)
     for t in event_transfers:
         src = by_event.setdefault(t["from_event"], _ev_init())
         src["contributed_out"] += t["amount"]

@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, HandCoins, Receipt, Users, Settings, Plus, X, ArrowRightLeft, FileDown, HandHelping } from "lucide-react";
+import { LayoutDashboard, HandCoins, Receipt, Users, Settings, Plus, X, ArrowRightLeft, FileDown, HandHelping, Calendar, Check } from "lucide-react";
+import { yearApi } from "@/lib/api";
+import { getActiveYear, setActiveYear, DEFAULT_YEAR } from "@/lib/year";
 
 const tabs = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard-tab", end: true },
@@ -14,7 +16,16 @@ export default function Layout() {
   const loc = useLocation();
   const nav = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
+  const [yearOpen, setYearOpen] = useState(false);
+  const [availableYears, setAvailableYears] = useState([DEFAULT_YEAR]);
+  const activeYear = getActiveYear();
   const activeTab = tabs.find((t) => (t.end ? loc.pathname === t.to : loc.pathname.startsWith(t.to)));
+
+  useEffect(() => {
+    yearApi.list()
+      .then((r) => setAvailableYears(r.years && r.years.length > 0 ? r.years : [DEFAULT_YEAR]))
+      .catch(() => {});
+  }, []);
 
   const goto = (path) => { setAddOpen(false); nav(path); };
 
@@ -30,6 +41,16 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setYearOpen(true)}
+              data-testid="year-selector-btn"
+              className="inline-flex items-center gap-1 px-2.5 h-10 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 text-sm"
+              title="Filter by year"
+            >
+              <Calendar size={15} />
+              <span className="tabular-nums">{activeYear}</span>
+            </button>
             <NavLink to="/reports" data-testid="header-reports-btn-mobile"
               className="md:hidden inline-flex items-center gap-1 px-3 h-10 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 text-sm">
               <FileDown size={16} /> Export
@@ -56,6 +77,30 @@ export default function Layout() {
         aria-label="Add">
         <Plus size={26} />
       </button>
+
+      {yearOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onClick={() => setYearOpen(false)} data-testid="year-sheet">
+          <div className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Calendar size={18} className="text-teal-600" /> Year filter
+              </h3>
+              <button onClick={() => setYearOpen(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="text-xs text-slate-500 mb-3">
+              Pura app iss year ke data pe filtered rahega — chanda, expenses, transfers, dashboard sab.
+            </div>
+            <div className="space-y-1.5">
+              <YearOption label="All years" value="all" active={activeYear === "all"} onSelect={() => setActiveYear("all")} testid="year-option-all" />
+              {availableYears.map((y) => (
+                <YearOption key={y} label={y} value={y} active={activeYear === y} onSelect={() => setActiveYear(y)} testid={`year-option-${y}`} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {addOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onClick={() => setAddOpen(false)} data-testid="add-sheet">
@@ -123,6 +168,22 @@ function SheetChoice({ testid, onClick, color, icon, title, sub }) {
         <div className={`font-semibold ${styles.text}`}>{title}</div>
         <div className={`text-xs ${styles.tsub}`}>{sub}</div>
       </div>
+    </button>
+  );
+}
+
+function YearOption({ label, value, active, onSelect, testid }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      data-testid={testid}
+      className={`w-full h-12 px-4 rounded-xl flex items-center justify-between border transition-colors ${
+        active ? "bg-teal-50 border-teal-500 text-teal-900" : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+      }`}
+    >
+      <span className="font-semibold tabular-nums">{label}</span>
+      {active && <Check size={18} className="text-teal-600" />}
     </button>
   );
 }

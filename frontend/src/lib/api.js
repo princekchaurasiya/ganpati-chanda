@@ -1,9 +1,26 @@
 import axios from "axios";
+import { getActiveYear } from "./year";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
 const client = axios.create({ baseURL: API });
+
+// Auto-attach year param to every GET so all list/dashboard/member endpoints
+// are year-scoped. POST/PUT/DELETE are untouched (they carry their own date).
+client.interceptors.request.use((config) => {
+  if ((config.method || "get").toLowerCase() === "get") {
+    const y = getActiveYear();
+    if (y && y !== "all") {
+      config.params = { ...(config.params || {}), year: y };
+    }
+  }
+  return config;
+});
+
+export const yearApi = {
+  list: () => client.get("/years").then((r) => r.data),
+};
 
 export const chandaApi = {
   list: () => client.get("/chanda").then((r) => r.data),
