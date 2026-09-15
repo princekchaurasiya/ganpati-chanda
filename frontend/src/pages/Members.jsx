@@ -1,11 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { memberApi, transferApi, ledgerApi, collectorApi } from "@/lib/api";
+import { memberApi, transferApi, ledgerApi, collectorApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
-import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus, FileText, FileSpreadsheet } from "lucide-react";
+import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus, FileText, FileSpreadsheet, Scale } from "lucide-react";
 import { toast } from "sonner";
-import { downloadMembersPDF, downloadMembersExcel } from "@/lib/exports";
+import { downloadMembersPDF, downloadMembersExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, collectionsForMember } from "@/lib/exports";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import MemberEditSheet from "@/components/MemberEditSheet";
+
+const memberNet = (m) => {
+  if (!m) return 0;
+  if (m.net_position != null) return Number(m.net_position);
+  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
+};
 
 export default function Members() {
   const nav = useNavigate();
@@ -21,6 +28,7 @@ export default function Members() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [savingMember, setSavingMember] = useState(false);
+  const [editSheet, setEditSheet] = useState(null); // { name, focus }
 
   const load = async () => {
     setLoading(true);
@@ -36,6 +44,32 @@ export default function Members() {
   useEffect(() => { load(); }, []);
 
   const collectorFor = (name) => collectors.find((c) => c.name === name);
+
+  const exportMember = async (name, kind) => {
+    try {
+      const [detail, allChandas] = await Promise.all([
+        memberApi.detail(name),
+        chandaApi.list().catch(() => []),
+      ]);
+      const chandas = collectionsForMember(detail, allChandas, name);
+      const expenses = detail?.expenses || [];
+      if (kind === "hisab-pdf") downloadMemberHisabPDF(name, detail);
+      else if (kind === "chanda-pdf") downloadMemberChandaReportPDF(name, chandas);
+      else if (kind === "chanda-excel") downloadMemberChandaReportExcel(name, chandas);
+      else if (kind === "expense-pdf") downloadMemberExpenseReportPDF(name, expenses);
+      else downloadMemberExpenseReportExcel(name, expenses);
+      const labels = {
+        "hisab-pdf": "Hisab PDF",
+        "chanda-pdf": "Chanda report PDF",
+        "chanda-excel": "Chanda report Excel",
+        "expense-pdf": "Expense report PDF",
+        "expense-excel": "Expense report Excel",
+      };
+      toast.success(`${labels[kind] || "Report"} downloaded`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Export failed");
+    }
+  };
 
   const doVoidTransfer = async () => {
     if (!confirmVoid) return;
@@ -107,20 +141,28 @@ export default function Members() {
         <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Members & Ledger</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={() => { try { downloadMembersHisabPDF(members); toast.success("Hisab PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
+            data-testid="members-hisab-pdf-btn"
+            title="Sab members ka plus/minus hisab bade font mein"
+            className="h-10 px-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 text-sm"
+          >
+            <Scale size={16} /> Hisab PDF
+          </button>
+          <button
             onClick={() => { try { downloadMembersPDF(members, ledger); toast.success("PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
             data-testid="members-export-pdf-btn"
-            title="Export Members + Ledger as PDF"
+            title="Export all members + ledger as PDF"
             className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
           >
-            <FileText size={16} /> PDF
+            <FileText size={16} /> All members PDF
           </button>
           <button
             onClick={() => { try { downloadMembersExcel(members, ledger); toast.success("Excel downloaded"); } catch { toast.error("Excel export failed"); } }}
             data-testid="members-export-excel-btn"
-            title="Export Members + Ledger as Excel"
+            title="Export all members + ledger as Excel"
             className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
           >
-            <FileSpreadsheet size={16} /> Excel
+            <FileSpreadsheet size={16} /> All members Excel
           </button>
           <button
             onClick={() => { setShowAddMember(true); setNewMemberName(""); }}
@@ -165,6 +207,9 @@ export default function Members() {
           <div className="card-elevated p-8 text-center text-slate-500">No member activity yet.</div>
         ) : (
           <div className="space-y-2.5">
+            <div className="text-xs text-teal-800 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2">
+              Galat collection / transfer / paid amount? Member ke <strong>Update</strong> pe tap karo — naam nahi, entries badlegi.
+            </div>
             {members.map((m) => {
               const col = collectorFor(m.name);
               return (
@@ -183,35 +228,82 @@ export default function Members() {
                         {m.name.charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-900 truncate flex items-center gap-1.5">
-                          {m.name}
-                          <span className="text-[10px] font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-full">Tap to edit entries</span>
-                        </div>
+                        <div className="font-semibold text-slate-900 truncate">{m.name}</div>
                         <div className="text-xs text-slate-500">{m.count_collections} collections</div>
                       </div>
                     </button>
-                    <div className="text-right shrink-0">
-                      <div className="text-xs text-slate-500">Currently Held</div>
-                      <div className={`font-num font-bold text-lg ${m.current_held < -0.01 ? "text-red-700" : m.current_held < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
-                        {formatINR(m.current_held)}
+                    <button
+                      type="button"
+                      onClick={() => setEditSheet({ name: m.name, focus: "collected" })}
+                      data-testid={`member-update-btn-${m.name}`}
+                      className="shrink-0 h-9 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs flex items-center gap-1"
+                    >
+                      <Pencil size={13} /> Update
+                    </button>
+                    <div className="text-right shrink-0 hidden sm:block">
+                      <div className="text-xs text-slate-500">Net hisab</div>
+                      <div className={`font-num font-bold text-lg ${memberNet(m) < -0.01 ? "text-red-700" : memberNet(m) < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
+                        {memberNet(m) > 0.01 ? "+" : ""}{formatINR(memberNet(m))}
                       </div>
+                      {Math.abs((m.current_held || 0) - memberNet(m)) > 0.01 && (
+                        <div className="text-[10px] text-slate-500">Group cash {formatINR(m.current_held)}</div>
+                      )}
                     </div>
-                    {col && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button data-testid={`member-menu-${m.name}`}
-                            className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center">
-                            <MoreVertical size={16} />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button data-testid={`member-menu-${m.name}`}
+                          className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center">
+                          <MoreVertical size={16} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem
+                          onClick={() => exportMember(m.name, "hisab-pdf")}
+                          data-testid={`member-hisab-pdf-${m.name}`}
+                        >
+                          <Scale size={14} className="mr-2" /> Hisab PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => exportMember(m.name, "chanda-pdf")}
+                          data-testid={`member-chanda-pdf-${m.name}`}
+                        >
+                          <FileText size={14} className="mr-2" /> Chanda report PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => exportMember(m.name, "chanda-excel")}
+                          data-testid={`member-chanda-excel-${m.name}`}
+                        >
+                          <FileSpreadsheet size={14} className="mr-2" /> Chanda report Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => exportMember(m.name, "expense-pdf")}
+                          data-testid={`member-expense-pdf-${m.name}`}
+                        >
+                          <FileText size={14} className="mr-2" /> Expense report PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => exportMember(m.name, "expense-excel")}
+                          data-testid={`member-expense-excel-${m.name}`}
+                        >
+                          <FileSpreadsheet size={14} className="mr-2" /> Expense report Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setEditSheet({ name: m.name, focus: "collected" })}
+                          data-testid={`member-edit-entries-${m.name}`}
+                        >
+                          <Pencil size={14} className="mr-2" /> Update entries
+                        </DropdownMenuItem>
+                        {col && (
                           <DropdownMenuItem
                             onClick={() => setRenameTarget({ collector: col, currentName: col.name, newName: col.name })}
                             data-testid={`member-rename-${m.name}`}
                           >
-                            <Pencil size={14} className="mr-2" /> Rename
+                            <Pencil size={14} className="mr-2" /> Rename member
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
+                        )}
+                        {col && <DropdownMenuSeparator />}
+                        {col && (
                           <DropdownMenuItem
                             onClick={() => setConfirmDeleteMember({ collector: col, memberSummary: m })}
                             data-testid={`member-delete-${m.name}`}
@@ -219,32 +311,42 @@ export default function Members() {
                           >
                             <Trash2 size={14} className="mr-2" /> Delete
                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="sm:hidden mb-2 text-right">
+                    <div className="text-xs text-slate-500">Net hisab</div>
+                    <div className={`font-num font-bold text-lg ${memberNet(m) < -0.01 ? "text-red-700" : memberNet(m) < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
+                      {memberNet(m) > 0.01 ? "+" : ""}{formatINR(memberNet(m))}
+                    </div>
+                    {Math.abs((m.current_held || 0) - memberNet(m)) > 0.01 && (
+                      <div className="text-[10px] text-slate-500">Group cash {formatINR(m.current_held)}</div>
                     )}
                   </div>
-                  <button
-                    onClick={() => nav(`/members/${encodeURIComponent(m.name)}`)}
-                    className="w-full grid grid-cols-4 gap-2 text-center text-xs cursor-pointer"
+                  <div
+                    className="w-full grid grid-cols-4 gap-2 text-center text-xs"
                     data-testid={`member-stats-${m.name}`}
                   >
-                    <div>
-                      <div className="text-slate-500">Collected</div>
-                      <div className="font-num font-bold text-slate-900">{formatINR(m.total_received)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Trf Out</div>
-                      <div className="font-num font-bold text-orange-700">{formatINR(m.transferred_out)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Trf In</div>
-                      <div className="font-num font-bold text-blue-700">{formatINR(m.transferred_in)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Paid</div>
-                      <div className="font-num font-bold text-red-700">{formatINR(m.paid_to_expenses)}</div>
-                    </div>
-                  </button>
+                    {[
+                      { k: "collected", label: "Collected", value: formatINR(m.total_received), cls: "text-slate-900" },
+                      { k: "trf_out", label: "Trf Out", value: formatINR(m.transferred_out), cls: "text-orange-700" },
+                      { k: "trf_in", label: "Trf In", value: formatINR(m.transferred_in), cls: "text-blue-700" },
+                      { k: "paid", label: "Paid", value: m.paid_to_expenses > 0.01 ? formatINR(-m.paid_to_expenses) : "—", cls: "text-red-700" },
+                    ].map((s) => (
+                      <button
+                        key={s.k}
+                        type="button"
+                        onClick={() => setEditSheet({ name: m.name, focus: s.k })}
+                        data-testid={`member-stat-${s.k}-${m.name}`}
+                        className="rounded-lg py-1 hover:bg-slate-50"
+                      >
+                        <div className="text-slate-500">{s.label}</div>
+                        <div className={`font-num font-bold ${s.cls}`}>{s.value}</div>
+                        <div className="text-[9px] text-teal-700 font-medium">tap to edit</div>
+                      </button>
+                    ))}
+                  </div>
                   {(m.personal_contribution > 0 || m.reimbursement_due > 0) && (
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2" data-testid={`member-reimb-${m.name}`}>
                       <div className="text-xs">
@@ -368,6 +470,15 @@ export default function Members() {
             ))}
           </div>
         )
+      )}
+
+      {editSheet && (
+        <MemberEditSheet
+          name={editSheet.name}
+          focus={editSheet.focus}
+          onClose={() => setEditSheet(null)}
+          onSaved={load}
+        />
       )}
 
       {/* Add member modal */}

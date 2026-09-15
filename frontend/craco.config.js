@@ -29,7 +29,9 @@ function makeDevServerV5Compatible(devServerConfig) {
         : "http";
   compatibleConfig.headers = {
     ...compatibleConfig.headers,
-    "Cross-Origin-Resource-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Cross-Origin-Embedder-Policy": "unsafe-none",
+    "Access-Control-Allow-Origin": "*",
   };
 
   if (onBeforeSetupMiddleware || setupMiddlewares) {
@@ -124,6 +126,18 @@ webpackConfig.devServer = (devServerConfig) => {
       return middlewares;
     };
   }
+
+  devServerConfig.host = process.env.HOST || "0.0.0.0";
+  devServerConfig.port = Number(process.env.PORT || 45211);
+  devServerConfig.allowedHosts = "all";
+  devServerConfig.historyApiFallback = {
+    disableDotRule: true,
+    htmlAcceptHeaders: ["text/html", "application/xhtml+xml"],
+  };
+  devServerConfig.client = {
+    ...(devServerConfig.client || {}),
+    overlay: false,
+  };
 
   return devServerConfig;
 };

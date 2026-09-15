@@ -1,0 +1,6 @@
+{
+  "name": "Ganpati Chanda",
+  "ports": [
+    { "name": "web", "port": 45211 }
+  ]
+}

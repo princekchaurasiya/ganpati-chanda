@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { expenseApi } from "@/lib/api";
-import { formatINR, formatDate } from "@/lib/format";
-import { Search, Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import { formatINR, formatDate, matchesAmount } from "@/lib/format";
+import { Pencil, Ban, RotateCcw, Plus, X, Receipt, ChevronRight, FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import ListSearch from "@/components/ListSearch";
 import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 import { mergeEvents, colorForEvent } from "@/lib/events";
 
-const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 
 const catColor = {
@@ -18,6 +19,7 @@ const catColor = {
   "Police & BMC": { bg: "bg-red-50", text: "text-red-700" },
   Documents: { bg: "bg-slate-50", text: "text-slate-700" },
   "Dahi Handi": { bg: "bg-emerald-50", text: "text-emerald-700" },
+  "Aarti Samagri": { bg: "bg-violet-50", text: "text-violet-700" },
   Materials: { bg: "bg-blue-50", text: "text-blue-700" },
   Food: { bg: "bg-orange-50", text: "text-orange-700" },
   Rent: { bg: "bg-purple-50", text: "text-purple-700" },
@@ -74,7 +76,9 @@ export default function Expenses() {
       .filter((e) => {
         if (!q.trim()) return true;
         const qq = q.trim().toLowerCase();
-        return e.description.toLowerCase().includes(qq) || (e.paid_by || "").toLowerCase().includes(qq);
+        return (e.description || "").toLowerCase().includes(qq)
+          || (e.paid_by || "").toLowerCase().includes(qq)
+          || matchesAmount(q, e.amount_paid, e.total_bill);
       });
   }, [entries, q, cat, mode, eventF, from, to, showVoided]);
 
@@ -145,18 +149,13 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search description or paid-by"
-          data-testid="expenses-search-input"
-          className="w-full h-12 pl-10 pr-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-base bg-white"
-        />
-      </div>
+      <ListSearch
+        value={q}
+        onChange={setQ}
+        placeholder="Search description, paid-by, amount..."
+        testId="expenses-search-input"
+        className="h-12 text-base"
+      />
 
       {/* Filters */}
       <div className="card-elevated p-4 space-y-3">

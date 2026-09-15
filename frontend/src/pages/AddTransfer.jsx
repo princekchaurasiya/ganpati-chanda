@@ -9,10 +9,11 @@ export default function AddTransfer() {
   const nav = useNavigate();
   const loc = useLocation();
   const editing = loc.state?.entry || null;
+  const returnTo = loc.state?.returnTo;
 
   const [members, setMembers] = useState([]);
-  const [fromMember, setFromMember] = useState(editing?.from_member || "");
-  const [toMember, setToMember] = useState(editing?.to_member || "");
+  const [fromMember, setFromMember] = useState(editing?.from_member || loc.state?.from_member || "");
+  const [toMember, setToMember] = useState(editing?.to_member || loc.state?.to_member || "");
   const [amount, setAmount] = useState(editing?.amount ? String(editing.amount) : "");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
   const [note, setNote] = useState(editing?.note || "");
@@ -42,7 +43,7 @@ export default function AddTransfer() {
         await transferApi.create(payload);
         toast.success(`${fromMember} → ${toMember} ${formatINR(Number(amount))}`);
       }
-      nav("/members");
+      nav(returnTo || "/members");
     } catch (err) {
       const msg = err?.response?.data?.detail || "Failed to save transfer";
       toast.error(msg);

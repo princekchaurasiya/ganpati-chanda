@@ -10,16 +10,18 @@ const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
 export default function AddReimbursement() {
   const nav = useNavigate();
   const loc = useLocation();
-  const initialTo = loc.state?.to_member || "";
-  const initialAmount = loc.state?.amount ? String(loc.state.amount) : "";
+  const editing = loc.state?.entry || null;
+  const returnTo = loc.state?.returnTo;
+  const initialTo = editing?.to_member || loc.state?.to_member || "";
+  const initialAmount = editing?.amount ? String(editing.amount) : (loc.state?.amount ? String(loc.state.amount) : "");
 
   const [members, setMembers] = useState([]);
-  const [paidBy, setPaidBy] = useState("");
+  const [paidBy, setPaidBy] = useState(editing?.paid_by || "");
   const [toMember, setToMember] = useState(initialTo);
   const [amount, setAmount] = useState(initialAmount);
-  const [mode, setMode] = useState("Cash");
-  const [dateStr, setDateStr] = useState(todayISO());
-  const [note, setNote] = useState("");
+  const [mode, setMode] = useState(editing?.payment_mode || "Cash");
+  const [dateStr, setDateStr] = useState(editing?.date || todayISO());
+  const [note, setNote] = useState(editing?.note || "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -30,8 +32,8 @@ export default function AddReimbursement() {
   const toM = members.find((m) => m.name === toMember);
   const availableHeld = paidByMember?.current_held ?? 0;
   const reimbDue = toM?.reimbursement_due ?? 0;
-  const exceedsHeld = Number(amount) > availableHeld;
-  const exceedsDue = Number(amount) > reimbDue;
+  const exceedsHeld = Number(amount) > availableHeld && !editing;
+  const exceedsDue = Number(amount) > reimbDue && !editing;
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -42,12 +44,18 @@ export default function AddReimbursement() {
 
     setSaving(true);
     try {
-      await reimbursementApi.create({
+      const payload = {
         paid_by: paidBy, to_member: toMember, amount: Number(amount),
         payment_mode: mode, date: dateStr, note: note.trim() || null,
-      });
-      toast.success(`${paidBy} → ${toMember} reimbursed ${formatINR(Number(amount))}`);
-      nav("/members");
+      };
+      if (editing) {
+        await reimbursementApi.update(editing.id, payload);
+        toast.success("Reimbursement updated");
+      } else {
+        await reimbursementApi.create(payload);
+        toast.success(`${paidBy} → ${toMember} reimbursed ${formatINR(Number(amount))}`);
+      }
+      nav(returnTo || "/members");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
     } finally {
@@ -63,7 +71,9 @@ export default function AddReimbursement() {
         <button onClick={() => nav(-1)} className="p-2 rounded-lg hover:bg-slate-100" data-testid="reimb-back-btn">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Reimburse Member</h1>
+        <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>
+          {editing ? "Edit Reimbursement" : "Reimburse Member"}
+        </h1>
       </div>
 
       <div className="card-elevated p-4 bg-amber-50 border-amber-200 flex gap-2">
@@ -74,7 +84,7 @@ export default function AddReimbursement() {
         </div>
       </div>
 
-      {membersWithDue.length === 0 ? (
+      {membersWithDue.length === 0 && !editing ? (
         <div className="card-elevated p-8 text-center text-slate-500" data-testid="no-dues">
           <HandCoins size={28} className="mx-auto mb-2 text-slate-400" />
           No outstanding personal contributions right now.
@@ -87,7 +97,7 @@ export default function AddReimbursement() {
               data-testid="reimb-to-select"
               className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white">
               <option value="">-- Select member --</option>
-              {membersWithDue.map((m) => (
+              {(editing ? members : membersWithDue).map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name} · Due: ₹{Math.round(m.reimbursement_due).toLocaleString("en-IN")}
                 </option>
@@ -106,7 +116,7 @@ export default function AddReimbursement() {
               data-testid="reimb-paidby-select"
               className="w-full h-12 px-4 rounded-xl border border-slate-300 focus:border-teal-600 outline-none text-base bg-white">
               <option value="">-- Select member --</option>
-              {members.filter((m) => m.name !== toMember && m.current_held > 0.01).map((m) => (
+              {members.filter((m) => m.name !== toMember && (editing || m.current_held > 0.01)).map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name} · Held: ₹{Math.round(m.current_held).toLocaleString("en-IN")}
                 </option>
@@ -174,7 +184,7 @@ export default function AddReimbursement() {
           <button type="submit" disabled={saving || exceedsHeld || exceedsDue}
             data-testid="reimb-submit-btn"
             className="w-full h-14 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-base shadow-md active:scale-[0.99] transition-transform flex items-center justify-center gap-2 disabled:opacity-60">
-            <Save size={18} /> Record Reimbursement
+            <Save size={18} /> {editing ? "Update Reimbursement" : "Record Reimbursement"}
           </button>
         </form>
       )}

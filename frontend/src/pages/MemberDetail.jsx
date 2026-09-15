@@ -2,8 +2,18 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { memberApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift, ChevronRight, X } from "lucide-react";
+import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift, ChevronRight, X, FileText, FileSpreadsheet, FileDown, Scale } from "lucide-react";
 import { colorForEvent } from "@/lib/events";
+import MemberEditSheet from "@/components/MemberEditSheet";
+import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF } from "@/lib/exports";
+import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+
+const memberNet = (m) => {
+  if (!m) return 0;
+  if (m.net_position != null) return Number(m.net_position);
+  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
+};
 
 export default function MemberDetail() {
   const { name } = useParams();
@@ -13,6 +23,23 @@ export default function MemberDetail() {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalKind, setModalKind] = useState(null);
+  const [showUpdate, setShowUpdate] = useState(false);
+
+  const loadDetail = () => {
+    Promise.all([
+      memberApi.detail(name).catch(() => null),
+      chandaApi.list().catch(() => []),
+    ]).then(([detail, allChandas]) => {
+      setData(detail);
+      const decoded = decodeURIComponent(name).toLowerCase().trim();
+      setDonations((allChandas || []).filter((c) => {
+        if (c.voided) return false;
+        if ((c.donor_member || "").toLowerCase().trim() === decoded) return true;
+        if ((c.name || "").toLowerCase().trim() === decoded && !c.donor_member) return true;
+        return false;
+      }));
+    }).finally(() => setLoading(false));
+  };
 
   // Auto-open a specific drill-down modal if the caller passed `state.focus`
   // (e.g. Dashboard SumCell click). Cleared after first render so back-navigation
@@ -26,20 +53,8 @@ export default function MemberDetail() {
   }, [loading]);
 
   useEffect(() => {
-    Promise.all([
-      memberApi.detail(name).catch(() => null),
-      chandaApi.list().catch(() => []),
-    ]).then(([detail, allChandas]) => {
-      setData(detail);
-      const decoded = decodeURIComponent(name).toLowerCase().trim();
-      setDonations((allChandas || []).filter((c) => {
-        if (c.voided) return false;
-        if ((c.donor_member || "").toLowerCase().trim() === decoded) return true;
-        // Exact match on name, but only if not already claimed by another donor_member
-        if ((c.name || "").toLowerCase().trim() === decoded && !c.donor_member) return true;
-        return false;
-      }));
-    }).finally(() => setLoading(false));
+    setLoading(true);
+    loadDetail();
   }, [name]);
 
   if (loading) return <div className="pt-10 text-center text-slate-500">Loading…</div>;
@@ -65,12 +80,104 @@ export default function MemberDetail() {
 
   return (
     <div className="space-y-4 pb-24" data-testid="member-detail-page">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <button onClick={() => nav(-1)} className="p-2 rounded-lg hover:bg-slate-100" data-testid="member-back-btn">
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-xl font-bold text-slate-900 truncate" style={{ fontFamily: "Outfit" }}>{name}</h1>
-      </div>
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-xl font-bold text-slate-900 truncate flex-1" style={{ fontFamily: "Outfit" }}>{name}</h1>
+          <button
+            type="button"
+            data-testid="member-detail-hisab-pdf-btn"
+            title="Is member ka plus/minus hisab + entries"
+            onClick={() => {
+              try {
+                downloadMemberHisabPDF(decodeURIComponent(name), data);
+                toast.success("Hisab PDF downloaded");
+              } catch { toast.error("Export failed"); }
+            }}
+            className="shrink-0 h-9 px-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs flex items-center gap-1"
+          >
+            <Scale size={13} /> Hisab PDF
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                data-testid="member-detail-reports-btn"
+                className="shrink-0 h-9 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-xs flex items-center gap-1"
+              >
+                <FileDown size={13} /> Reports
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onClick={async () => {
+                  try {
+                    const summary = await memberApi.summary();
+                    downloadMembersHisabPDF(summary.members || []);
+                    toast.success("Hisab PDF downloaded");
+                  } catch { toast.error("Export failed"); }
+                }}
+                data-testid="member-detail-hisab-pdf"
+              >
+                <Scale size={14} className="mr-2" /> Sab members Hisab PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  try {
+                    downloadMemberChandaReportPDF(decodeURIComponent(name), data?.chandas || []);
+                    toast.success("Chanda report PDF downloaded");
+                  } catch { toast.error("Export failed"); }
+                }}
+                data-testid="member-detail-chanda-pdf"
+              >
+                <FileText size={14} className="mr-2" /> Chanda report PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  try {
+                    downloadMemberChandaReportExcel(decodeURIComponent(name), data?.chandas || []);
+                    toast.success("Chanda report Excel downloaded");
+                  } catch { toast.error("Export failed"); }
+                }}
+                data-testid="member-detail-chanda-excel"
+              >
+                <FileSpreadsheet size={14} className="mr-2" /> Chanda report Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  try {
+                    downloadMemberExpenseReportPDF(decodeURIComponent(name), data?.expenses || []);
+                    toast.success("Expense report PDF downloaded");
+                  } catch { toast.error("Export failed"); }
+                }}
+                data-testid="member-detail-expense-pdf"
+              >
+                <FileText size={14} className="mr-2" /> Expense report PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  try {
+                    downloadMemberExpenseReportExcel(decodeURIComponent(name), data?.expenses || []);
+                    toast.success("Expense report Excel downloaded");
+                  } catch { toast.error("Export failed"); }
+                }}
+                data-testid="member-detail-expense-excel"
+              >
+                <FileSpreadsheet size={14} className="mr-2" /> Expense report Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            type="button"
+            onClick={() => setShowUpdate(true)}
+            data-testid="member-detail-update-btn"
+            className="shrink-0 h-9 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs flex items-center gap-1"
+          >
+            <Pencil size={13} /> Update
+          </button>
+        </div>
 
       <div className="rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 text-xs text-teal-800 flex items-center gap-2" data-testid="member-edit-hint">
         <Pencil size={13} className="shrink-0" /> Galat entry? Kisi bhi row ke pencil icon pe tap karke saare fields (amount, mode, date, etc.) edit karo.
@@ -133,20 +240,21 @@ export default function MemberDetail() {
         type="button"
         onClick={() => setModalKind("held")}
         data-testid="member-held-card"
-        className={`card-elevated p-5 w-full text-left hover:brightness-95 active:scale-[0.99] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 ${s.current_held < -0.01 ? "bg-red-50" : s.current_held < 0.01 ? "bg-slate-50" : "bg-emerald-50"}`}
+        className={`card-elevated p-5 w-full text-left hover:brightness-95 active:scale-[0.99] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 ${memberNet(s) < -0.01 ? "bg-red-50" : memberNet(s) < 0.01 ? "bg-slate-50" : "bg-emerald-50"}`}
       >
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Currently Held</div>
+          <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Net hisab</div>
           <ChevronRight size={16} className="text-slate-400" />
         </div>
-        <div className={`mt-1 text-4xl font-extrabold font-num tracking-tight ${s.current_held < -0.01 ? "text-red-700" : s.current_held < 0.01 ? "text-slate-500" : "text-emerald-700"}`} data-testid="member-current-held">
-          {formatINR(s.current_held)}
+        <div className={`mt-1 text-4xl font-extrabold font-num tracking-tight ${memberNet(s) < -0.01 ? "text-red-700" : memberNet(s) < 0.01 ? "text-slate-500" : "text-emerald-700"}`} data-testid="member-current-held">
+          {memberNet(s) > 0.01 ? "+" : ""}{formatINR(memberNet(s))}
         </div>
         <div className="text-xs text-slate-600 mt-1 font-num">
           {formatINR(s.total_received)} received
           {s.transferred_in > 0 && <> +{formatINR(s.transferred_in)} in</>}
           {s.transferred_out > 0 && <> −{formatINR(s.transferred_out)} out</>}
           {s.paid_to_expenses > 0 && <> −{formatINR(s.paid_to_expenses)} paid</>}
+          {Math.abs((s.current_held || 0) - memberNet(s)) > 0.01 && <> · group cash {formatINR(s.current_held)}</>}
         </div>
       </button>
       )}
@@ -384,6 +492,15 @@ export default function MemberDetail() {
           </div>
         </section>
       )}
+
+      {showUpdate && (
+        <MemberEditSheet
+          name={decodeURIComponent(name)}
+          focus="collected"
+          onClose={() => setShowUpdate(false)}
+          onSaved={loadDetail}
+        />
+      )}
     </div>
   );
 }
@@ -423,6 +540,7 @@ function MiniCard({ label, value, sub, color, onClick, testid }) {
 function MemberModal({ kind, name, data, donations, onClose, nav }) {
   if (!data) return null;
   const s = data.summary;
+  const returnTo = `/members/${encodeURIComponent(name)}`;
   const activeChandas = (data.chandas || []).filter((c) => !c.voided);
   const collectedList = activeChandas.filter((c) => c.status === "Collected");
   const pendingList = activeChandas.filter((c) => c.status === "Pending");
@@ -437,7 +555,7 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
   if (kind === "collected") {
     title = "Collected Chanda";
     subtitle = `${collectedList.length} entries · ${formatINR(collectedList.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0))}`;
-    body = <ChandaList entries={collectedList} nav={nav} onClose={onClose} />;
+    body = <ChandaList entries={collectedList} nav={nav} onClose={onClose} returnTo={returnTo} />;
   } else if (kind === "promised") {
     title = "All Promised";
     subtitle = `${activeChandas.length} entries · ${formatINR(s.total_promised)} · pending ${formatINR(s.total_pending)}`;
@@ -446,29 +564,29 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
         {pendingList.length > 0 && (
           <>
             <SectionLabel>Pending · {formatINR(pendingList.reduce((s, c) => s + (c.amount || 0), 0))}</SectionLabel>
-            <ChandaList entries={pendingList} nav={nav} onClose={onClose} />
+            <ChandaList entries={pendingList} nav={nav} onClose={onClose} returnTo={returnTo} />
           </>
         )}
         <SectionLabel>Collected · {formatINR(collectedList.reduce((s, c) => s + (c.received_amount || c.amount || 0), 0))}</SectionLabel>
-        <ChandaList entries={collectedList} nav={nav} onClose={onClose} />
+        <ChandaList entries={collectedList} nav={nav} onClose={onClose} returnTo={returnTo} />
       </div>
     );
   } else if (kind === "trf_out") {
     title = `Transferred Out by ${name}`;
     subtitle = `${trfOut.length} transfers · ${formatINR(trfOut.reduce((s, t) => s + t.amount, 0))}`;
-    body = <TransferList entries={trfOut} direction="out" nav={nav} onClose={onClose} />;
+    body = <TransferList entries={trfOut} direction="out" nav={nav} onClose={onClose} returnTo={returnTo} />;
   } else if (kind === "trf_in") {
     title = `Received From Others`;
     subtitle = `${trfIn.length} transfers · ${formatINR(trfIn.reduce((s, t) => s + t.amount, 0))}`;
-    body = <TransferList entries={trfIn} direction="in" nav={nav} onClose={onClose} />;
+    body = <TransferList entries={trfIn} direction="in" nav={nav} onClose={onClose} returnTo={returnTo} />;
   } else if (kind === "group_paid") {
     title = "Group Funds Paid";
     subtitle = `${groupPaidExp.length} expenses · ${formatINR(groupPaidExp.reduce((s, e) => s + (e.group_funds_used || 0), 0))}`;
-    body = <ExpenseList entries={groupPaidExp} field="group_funds_used" nav={nav} onClose={onClose} />;
+    body = <ExpenseList entries={groupPaidExp} field="group_funds_used" nav={nav} onClose={onClose} returnTo={returnTo} />;
   } else if (kind === "personal") {
     title = "Personal Contribution";
     subtitle = `${personalExp.length} expenses · ${formatINR(personalExp.reduce((s, e) => s + (e.personal_contribution || 0), 0))}${s.reimbursement_due > 0.01 ? ` · ${formatINR(s.reimbursement_due)} due` : ""}`;
-    body = <ExpenseList entries={personalExp} field="personal_contribution" nav={nav} onClose={onClose} />;
+    body = <ExpenseList entries={personalExp} field="personal_contribution" nav={nav} onClose={onClose} returnTo={returnTo} />;
   } else if (kind === "reimb_in") {
     title = "Reimbursements Received";
     subtitle = `${reimbIn.length} · ${formatINR(reimbIn.reduce((s, r) => s + r.amount, 0))}`;
@@ -544,7 +662,7 @@ function TallyRow({ label, amount, tone }) {
   );
 }
 
-function ChandaList({ entries, nav, onClose }) {
+function ChandaList({ entries, nav, onClose, returnTo }) {
   if (entries.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">No entries.</div>;
   return (
     <div className="divide-y divide-slate-100">
@@ -567,7 +685,7 @@ function ChandaList({ entries, nav, onClose }) {
               <div className="font-num font-bold text-sm text-slate-900">{formatINR(c.status === "Collected" ? (c.received_amount || c.amount) : c.amount)}</div>
               {c.status === "Pending" && <div className="text-[9px] text-orange-600">pending</div>}
             </div>
-            <button onClick={() => { onClose(); nav("/add", { state: { entry: c } }); }} data-testid={`modal-chanda-edit-${c.id}`}
+            <button onClick={() => { onClose(); nav("/add", { state: { entry: c, returnTo } }); }} data-testid={`modal-chanda-edit-${c.id}`}
               className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center" title="Edit">
               <Pencil size={13} />
             </button>
@@ -578,7 +696,7 @@ function ChandaList({ entries, nav, onClose }) {
   );
 }
 
-function TransferList({ entries, direction, nav, onClose }) {
+function TransferList({ entries, direction, nav, onClose, returnTo }) {
   if (entries.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">No transfers.</div>;
   return (
     <div className="divide-y divide-slate-100">
@@ -591,7 +709,7 @@ function TransferList({ entries, direction, nav, onClose }) {
             <div className="text-[10px] text-slate-500 truncate">{formatDate(t.date)}{t.note ? ` · ${t.note}` : ""}</div>
           </div>
           <div className={`font-num font-bold text-sm shrink-0 ${direction === "out" ? "text-orange-700" : "text-blue-700"}`}>{direction === "out" ? "-" : "+"}{formatINR(t.amount)}</div>
-          <button onClick={() => { onClose(); nav("/transfer/add", { state: { entry: t } }); }} data-testid={`modal-trf-edit-${t.id}`}
+          <button onClick={() => { onClose(); nav("/transfer/add", { state: { entry: t, returnTo } }); }} data-testid={`modal-trf-edit-${t.id}`}
             className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center" title="Edit">
             <Pencil size={13} />
           </button>
@@ -601,7 +719,7 @@ function TransferList({ entries, direction, nav, onClose }) {
   );
 }
 
-function ExpenseList({ entries, field, nav, onClose }) {
+function ExpenseList({ entries, field, nav, onClose, returnTo }) {
   if (entries.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">No expenses.</div>;
   return (
     <div className="divide-y divide-slate-100">
@@ -620,7 +738,7 @@ function ExpenseList({ entries, field, nav, onClose }) {
             <div className="font-num font-bold text-sm text-red-700">-{formatINR(e[field] || 0)}</div>
             {(e.total_bill || 0) !== (e[field] || 0) && <div className="text-[9px] text-slate-500 font-num">bill {formatINR(e.total_bill)}</div>}
           </div>
-          <button onClick={() => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} data-testid={`modal-exp-edit-${e.id}`}
+          <button onClick={() => { onClose(); nav("/expenses/add", { state: { entry: e, returnTo } }); }} data-testid={`modal-exp-edit-${e.id}`}
             className="shrink-0 w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center" title="Edit">
             <Pencil size={13} />
           </button>

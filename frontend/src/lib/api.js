@@ -1,10 +1,14 @@
 import axios from "axios";
 import { getActiveYear } from "./year";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+// Always same-origin `/api` so Preview/tunnels do not call a different host
+// (empty REACT_APP_BACKEND_URL, localhost, or a stale Emergent URL).
+export const API = "/api";
 
-const client = axios.create({ baseURL: API });
+const client = axios.create({
+  baseURL: API,
+  timeout: 20000,
+});
 
 // Auto-attach year param to every GET so all list/dashboard/member endpoints
 // are year-scoped. POST/PUT/DELETE are untouched (they carry their own date).

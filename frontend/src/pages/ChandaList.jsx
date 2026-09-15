@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { chandaApi, collectorApi, receiptBookApi } from "@/lib/api";
-import { formatINR, formatDate } from "@/lib/format";
-import { Search, MoreVertical, Pencil, Ban, RotateCcw, CheckCircle2, Clock, X, ChevronDown, ChevronUp } from "lucide-react";
+import { formatINR, formatDate, matchesAmount } from "@/lib/format";
+import { MoreVertical, Pencil, Ban, RotateCcw, CheckCircle2, Clock, X, ChevronDown, ChevronUp } from "lucide-react";
+import ListSearch from "@/components/ListSearch";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { mergeEvents, colorForEvent } from "@/lib/events";
@@ -59,11 +60,12 @@ export default function ChandaList() {
       .filter((e) => {
         if (!q.trim()) return true;
         const qq = q.trim().toLowerCase();
-        return e.name.toLowerCase().includes(qq)
-          || e.collector.toLowerCase().includes(qq)
+        return (e.name || "").toLowerCase().includes(qq)
+          || (e.collector || "").toLowerCase().includes(qq)
           || (e.mobile || "").toLowerCase().includes(qq)
           || (e.receipt_book_name || "").toLowerCase().includes(qq)
-          || String(e.receipt_no || "").includes(qq);
+          || String(e.receipt_no || "").includes(qq)
+          || matchesAmount(q, e.amount, e.received_amount);
       });
   }, [entries, q, status, mode, collector, bookId, eventF, rNo, from, to, showVoided]);
 
@@ -93,16 +95,12 @@ export default function ChandaList() {
     <div className="space-y-3" data-testid="chanda-list-page">
       <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Outfit" }}>Chanda List (चंदा सूची)</h1>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text" value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, mobile, receipt (B1/001)..."
-          data-testid="chanda-search-input"
-          className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none text-sm bg-white"
-        />
-      </div>
+      <ListSearch
+        value={q}
+        onChange={setQ}
+        placeholder="Search name, mobile, receipt, amount..."
+        testId="chanda-search-input"
+      />
 
       {/* Filter toggle bar */}
       <div className="flex items-center gap-2">

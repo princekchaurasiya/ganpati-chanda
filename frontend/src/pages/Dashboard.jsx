@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { dashboardApi, chandaApi, expenseApi, reimbursementApi, backupApi, eventTransferApi, transferApi } from "@/lib/api";
+import { dashboardApi, chandaApi, expenseApi, reimbursementApi, eventTransferApi, transferApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, ChevronRight, X, CheckCircle2, Pencil, ExternalLink, ArrowLeft, CalendarDays, Repeat, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { colorForEvent } from "@/lib/events";
+import { downloadMembersHisabPDF } from "@/lib/exports";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -19,6 +20,12 @@ const shortReceipt = (e) => {
   return `${p}/${String(e.receipt_no).padStart(3, "0")}`;
 };
 
+const memberNet = (m) => {
+  if (!m) return 0;
+  if (m.net_position != null) return Number(m.net_position);
+  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [chandas, setChandas] = useState([]);
@@ -26,6 +33,7 @@ export default function Dashboard() {
   const [reimbs, setReimbs] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [modalStack, setModalStack] = useState([]);
   const modalKind = modalStack.length ? modalStack[modalStack.length - 1] : null;
   const setModalKind = (k) => {
@@ -36,6 +44,7 @@ export default function Dashboard() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const [s, cList, eList, rList, tList] = await Promise.all([
         dashboardApi.get(), chandaApi.list(), expenseApi.list(), reimbursementApi.list(), transferApi.list(),
@@ -45,15 +54,29 @@ export default function Dashboard() {
       setExpenses(eList);
       setReimbs(rList);
       setTransfers(tList);
+    } catch (err) {
+      setLoadError(err?.message || "Could not load dashboard");
     } finally { setLoading(false); }
   };
 
   useEffect(() => {
-    (async () => { try { await backupApi.seed(); } catch (_e) {} load(); })();
+    load();
   }, []);
 
-  if (loading || !stats) {
+  if (loading && !stats) {
     return <div className="pt-10 text-center text-slate-500" data-testid="dashboard-loading">Loading…</div>;
+  }
+
+  if (loadError && !stats) {
+    return (
+      <div className="pt-10 text-center space-y-3" data-testid="dashboard-error">
+        <p className="text-slate-700 font-medium">Dashboard load nahi hua</p>
+        <p className="text-sm text-slate-500">{loadError}</p>
+        <button type="button" onClick={load} className="px-4 h-11 rounded-xl bg-teal-600 text-white font-semibold">
+          Retry
+        </button>
+      </div>
+    );
   }
 
   const ch = stats.chanda;
@@ -130,11 +153,24 @@ export default function Dashboard() {
       </section>
 
       <section className="card-elevated p-5" data-testid="members-summary-section">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
             <Users size={16} className="text-teal-700" /> Member-wise Summary
           </h2>
-          <Link to="/members" className="text-xs font-medium text-teal-700" data-testid="members-view-link">Details →</Link>
+          <div className="flex items-center gap-2">
+            {members.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { try { downloadMembersHisabPDF(members); toast.success("Hisab PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
+                data-testid="dashboard-hisab-pdf-btn"
+                title="Sab members ka plus/minus bade font mein"
+                className="h-8 px-2.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs flex items-center gap-1"
+              >
+                <Scale size={13} /> Hisab PDF
+              </button>
+            )}
+            <Link to="/members" className="text-xs font-medium text-teal-700" data-testid="members-view-link">Details →</Link>
+          </div>
         </div>
         {members.length === 0 ? (
           <div className="text-sm text-slate-500">No member activity yet.</div>
@@ -147,7 +183,7 @@ export default function Dashboard() {
                   <th className="py-2 px-2 font-semibold text-right font-num">Collected</th>
                   <th className="py-2 px-2 font-semibold text-right font-num">Trf</th>
                   <th className="py-2 px-2 font-semibold text-right font-num">Paid</th>
-                  <th className="py-2 pl-2 font-semibold text-right font-num">Held</th>
+                  <th className="py-2 pl-2 font-semibold text-right font-num">Net</th>
                 </tr>
               </thead>
               <tbody>
@@ -162,13 +198,31 @@ export default function Dashboard() {
                       {m.transferred_in > 0 && <span className="text-blue-700"> +{formatINR(m.transferred_in)}</span>}
                       {(m.transferred_out === 0 && m.transferred_in === 0) && <span className="text-slate-400">—</span>}
                     </td>
-                    <td className="py-2 px-2 text-right font-num text-red-700">{m.paid_to_expenses > 0 ? formatINR(m.paid_to_expenses) : "—"}</td>
-                    <td className={`py-2 pl-2 text-right font-num font-bold ${m.current_held < -0.01 ? "text-red-700" : m.current_held < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
-                      {formatINR(m.current_held)}
+                    <td className="py-2 px-2 text-right font-num text-red-700">{m.paid_to_expenses > 0.01 ? formatINR(-m.paid_to_expenses) : "—"}</td>
+                    <td className={`py-2 pl-2 text-right font-num font-bold ${memberNet(m) < -0.01 ? "text-red-700" : memberNet(m) < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
+                      {memberNet(m) > 0.01 ? "+" : ""}{formatINR(memberNet(m))}
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                {(() => {
+                  const nets = members.map(memberNet);
+                  const plus = nets.filter((n) => n > 0.01).reduce((s, n) => s + n, 0);
+                  const minus = nets.filter((n) => n < -0.01).reduce((s, n) => s + n, 0);
+                  const net = plus + minus;
+                  return (
+                    <tr className="border-t-2 border-slate-200 bg-slate-50" data-testid="members-hisab-footer">
+                      <td className="py-2.5 pr-2 text-xs font-semibold text-slate-700" colSpan={4}>
+                        Hisab · Plus {formatINR(plus)} · Minus {formatINR(minus)}
+                      </td>
+                      <td className={`py-2.5 pl-2 text-right font-num font-extrabold ${net < -0.01 ? "text-red-700" : net < 0.01 ? "text-slate-600" : "text-emerald-700"}`}>
+                        {net > 0.01 ? "+" : ""}{formatINR(net)}
+                      </td>
+                    </tr>
+                  );
+                })()}
+              </tfoot>
             </table>
           </div>
         )}

@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,9 +16,9 @@ from datetime import datetime, timezone, date
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ.get("MONGO_URL", "mongodb://127.0.0.1:27017")
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get("DB_NAME", "ganpati_chanda")]
 
 app = FastAPI(title="Chanda Manager API")
 api_router = APIRouter(prefix="/api")
@@ -25,7 +27,7 @@ api_router = APIRouter(prefix="/api")
 # ============= Models =============
 PaymentMode = Literal["Cash", "UPI", "Bank Transfer", "Other"]
 Status = Literal["Pending", "Collected"]
-ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Mandap", "Murti", "Banner", "Police & BMC", "Documents", "Dahi Handi", "Other"]
+ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Mandap", "Murti", "Banner", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Other"]
 
 
 class ChandaBase(BaseModel):
@@ -396,8 +398,13 @@ async def update_chanda(chanda_id: str, payload: ChandaUpdate):
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     new_status = update_data.get("status", existing.get("status"))
     new_amount = update_data.get("amount", existing.get("amount"))
-    if "status" in update_data and "received_amount" not in update_data:
-        update_data["received_amount"] = new_amount if new_status == "Collected" else 0
+    # Keep received_amount in sync when amount/status change, unless the client
+    # sent received_amount explicitly (partial pending collections).
+    if "received_amount" not in update_data:
+        if new_status == "Collected" and ("amount" in update_data or "status" in update_data):
+            update_data["received_amount"] = new_amount
+        elif "status" in update_data:
+            update_data["received_amount"] = 0
     if new_status == "Collected" and not existing.get("collected_at"):
         update_data["collected_at"] = datetime.now(timezone.utc).isoformat()
     if new_status == "Pending":
@@ -892,8 +899,10 @@ async def build_member_summaries(year: Optional[str] = None):
         r_in = await db.reimbursements.find({"voided": {"$ne": True}, "to_member": name, **yq}, {"_id": 0}).to_list(50000)
         reimbursement_received = sum(r["amount"] for r in r_in)
 
-        current_held = received_group_calc = total_received - transferred_out + transferred_in - group_funds_paid - reimbursement_paid_out
+        current_held = total_received - transferred_out + transferred_in - group_funds_paid - reimbursement_paid_out
         reimbursement_due = personal_contribution - reimbursement_received
+        # Pocket hisab: collected − transfers out + transfers in − sab kharch (group + personal)
+        net_position = total_received - transferred_out + transferred_in - (group_funds_paid + personal_contribution)
 
         result.append({
             "name": name,
@@ -910,6 +919,7 @@ async def build_member_summaries(year: Optional[str] = None):
             "reimbursement_due": reimbursement_due,
             "paid_to_expenses": group_funds_paid + personal_contribution,  # back-compat total
             "current_held": current_held,
+            "net_position": net_position,
         })
     return result
 
@@ -936,7 +946,7 @@ async def member_detail(name: str, year: Optional[str] = None):
                    "count_collections": 0, "transferred_out": 0, "transferred_in": 0,
                    "group_funds_paid": 0, "personal_contribution": 0,
                    "reimbursement_paid_out": 0, "reimbursement_received": 0,
-                   "reimbursement_due": 0, "paid_to_expenses": 0, "current_held": 0}
+                   "reimbursement_due": 0, "paid_to_expenses": 0, "current_held": 0, "net_position": 0}
     return {
         "summary": summary,
         "chandas": chandas,
@@ -1219,11 +1229,46 @@ async def seed():
 
 app.include_router(api_router)
 
+
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
+
+cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+allow_credentials = cors_origins != ["*"]
 app.add_middleware(
-    CORSMiddleware, allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_credentials=allow_credentials,
+    allow_origins=cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
+if FRONTEND_BUILD.is_dir():
+    static_assets = FRONTEND_BUILD / "static"
+    if static_assets.is_dir():
+        app.mount("/static", StaticFiles(directory=static_assets), name="frontend-static")
+
+    def _spa_index():
+        index = FRONTEND_BUILD / "index.html"
+        if not index.is_file():
+            raise HTTPException(status_code=404, detail="Frontend build missing. Run: cd frontend && CI=false yarn build")
+        return FileResponse(index)
+
+    @app.get("/")
+    async def spa_root():
+        return _spa_index()
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        if full_path.startswith("api/") or full_path in {"docs", "redoc", "openapi.json", "health"}:
+            raise HTTPException(status_code=404)
+        candidate = FRONTEND_BUILD / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return _spa_index()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

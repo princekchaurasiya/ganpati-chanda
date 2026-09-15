@@ -6,13 +6,14 @@ import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, 
 import { toast } from "sonner";
 import { DEFAULT_EVENT, mergeEvents } from "@/lib/events";
 
-const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
 
 export default function AddExpense() {
   const nav = useNavigate();
   const loc = useLocation();
   const editing = loc.state?.entry || null;
+  const returnTo = loc.state?.returnTo;
 
   const [description, setDescription] = useState(editing?.description || "");
   const [vendor, setVendor] = useState(editing?.vendor || "");
@@ -21,7 +22,7 @@ export default function AddExpense() {
   const [amountPaid, setAmountPaid] = useState(editing?.amount_paid ? String(editing.amount_paid) : "");
   const [groupFunds, setGroupFunds] = useState(editing?.group_funds_used !== undefined ? String(editing.group_funds_used) : "");
   const [personal, setPersonal] = useState(editing?.personal_contribution !== undefined ? String(editing.personal_contribution) : "0");
-  const [paidBy, setPaidBy] = useState(editing?.paid_by || "");
+  const [paidBy, setPaidBy] = useState(editing?.paid_by || loc.state?.paid_by || "");
   const [mode, setMode] = useState(editing?.payment_mode || "Cash");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
   const [note, setNote] = useState(editing?.note || "");
@@ -91,7 +92,7 @@ export default function AddExpense() {
         await expenseApi.create(payload);
         toast.success(`${description}: ${formatINR(paidNum)} paid`);
       }
-      nav("/expenses");
+      nav(returnTo || "/expenses");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to save");
     } finally {

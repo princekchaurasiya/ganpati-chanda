@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { chandaApi, collectorApi } from "@/lib/api";
+import { chandaApi, collectorApi, memberApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { FileText, FileSpreadsheet, FileDown, Share2 } from "lucide-react";
+import { FileText, FileSpreadsheet, FileDown, Share2, Scale } from "lucide-react";
+import { downloadMembersHisabPDF } from "@/lib/exports";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -37,10 +38,11 @@ export default function Reports() {
   const [eventF, setEventF] = useState("All");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [members, setMembers] = useState([]);
 
   useEffect(() => {
-    Promise.all([chandaApi.list(), collectorApi.list()]).then(([e, c]) => {
-      setEntries(e); setCollectors(c);
+    Promise.all([chandaApi.list(), collectorApi.list(), memberApi.summary().catch(() => ({ members: [] }))]).then(([e, c, m]) => {
+      setEntries(e); setCollectors(c); setMembers(m.members || []);
     });
   }, []);
 
@@ -196,6 +198,26 @@ export default function Reports() {
   return (
     <div className="space-y-4" data-testid="reports-page">
       <h1 className="text-xl font-bold text-slate-900" style={{fontFamily:"Outfit"}}>Reports & Export</h1>
+
+      <section className="card-elevated p-5 space-y-2" data-testid="hisab-export-card">
+        <h2 className="font-semibold text-slate-900">Net Hisab — sab members</h2>
+        <p className="text-sm text-slate-600">
+          Har member plus (extra cash) ya minus (extra kharch) — Abhishek jaisi NET HISAB card, sab ek PDF mein.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              downloadMembersHisabPDF(members);
+              toast.success("Hisab PDF downloaded");
+            } catch { toast.error("PDF export failed"); }
+          }}
+          data-testid="reports-hisab-pdf-btn"
+          className="w-full h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-2"
+        >
+          <Scale size={18} /> Hisab PDF — plus / minus
+        </button>
+      </section>
 
       {/* Filters */}
       <section className="card-elevated p-5 space-y-3">

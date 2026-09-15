@@ -13,11 +13,12 @@ export default function AddChanda() {
   const nav = useNavigate();
   const loc = useLocation();
   const editing = loc.state?.entry || null;
+  const returnTo = loc.state?.returnTo;
 
   const [name, setName] = useState(editing?.name || "");
   const [mobile, setMobile] = useState(editing?.mobile || "");
   const [amount, setAmount] = useState(editing?.amount ? String(editing.amount) : "");
-  const [collector, setCollector] = useState(editing?.collector || "");
+  const [collector, setCollector] = useState(editing?.collector || loc.state?.collector || "");
   const [newCollector, setNewCollector] = useState("");
   const [mode, setMode] = useState(editing?.payment_mode || "Cash");
   const [status, setStatus] = useState(editing?.status || "Collected");
@@ -129,6 +130,7 @@ export default function AddChanda() {
         receipt_no: receiptNo ? Number(receiptNo) : null,
         event: event || DEFAULT_EVENT,
         donor_member: donorMember || "",
+        received_amount: status === "Collected" ? Number(amount) : 0,
       };
       if (editing) {
         await chandaApi.update(editing.id, payload);
@@ -137,7 +139,7 @@ export default function AddChanda() {
         await chandaApi.create(payload);
         toast.success(`${formatINR(payload.amount)} added from ${payload.name}`);
       }
-      nav("/list");
+      nav(returnTo || "/list");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to save entry");
     } finally {

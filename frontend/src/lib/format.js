@@ -1,6 +1,44 @@
+/** Digits of a rupee search (₹ / Rs. / commas stripped). "14" or "1400". Else null. */
+export const parseAmountDigits = (q) => {
+  const cleaned = String(q || "")
+    .trim()
+    .replace(/₹/g, "")
+    .replace(/\brs\.?\b/gi, "")
+    .replace(/,/g, "")
+    .trim();
+  if (!cleaned || !/^\d+(\.\d+)?$/.test(cleaned)) return null;
+  const intPart = cleaned.split(".")[0].replace(/^0+(?=\d)/, "") || "0";
+  return intPart;
+};
+
+/** Parse a search box as rupees. Accepts 1400, 1,400, ₹1400, Rs. 1400. Else null. */
+export const parseAmountQuery = (q) => {
+  const digits = parseAmountDigits(q);
+  if (digits == null) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Amount search: 14 matches 1400 (prefix while typing).
+ * Once 4+ digits (1400), exact only — 14000 is not included.
+ */
+export const matchesAmount = (q, ...values) => {
+  const Q = parseAmountDigits(q);
+  if (!Q) return false;
+  return values.some((v) => {
+    if (v == null) return false;
+    const A = String(Math.round(Math.abs(Number(v))));
+    if (A === Q) return true;
+    if (Q.length >= 4) return false;
+    return A.startsWith(Q);
+  });
+};
+
 export const formatINR = (amount) => {
   const n = Number(amount || 0);
-  return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const body = Math.abs(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  return (n < -0.005 ? "-₹" : "₹") + body;
 };
 
 export const formatINRDecimal = (amount) => {
