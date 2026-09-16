@@ -40,9 +40,20 @@ export default function ChandaList() {
 
   const load = async () => {
     setLoading(true);
-    const [list, cols, bks] = await Promise.all([chandaApi.list(), collectorApi.list(), receiptBookApi.list()]);
-    setEntries(list); setCollectors(cols); setBooks(bks);
-    setLoading(false);
+    try {
+      const [list, cols, bks] = await Promise.all([
+        chandaApi.list(),
+        collectorApi.list().catch(() => []),
+        receiptBookApi.list().catch(() => []),
+      ]);
+      setEntries(list || []);
+      setCollectors(cols || []);
+      setBooks(bks || []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || err?.message || "Chanda load nahi hua");
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 

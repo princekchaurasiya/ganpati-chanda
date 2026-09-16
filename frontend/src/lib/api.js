@@ -10,17 +10,41 @@ const client = axios.create({
   timeout: 20000,
 });
 
+const YEARLESS_GETS = ["/collectors", "/receipt-books", "/years"];
+
 // Auto-attach year param to every GET so all list/dashboard/member endpoints
 // are year-scoped. POST/PUT/DELETE are untouched (they carry their own date).
 client.interceptors.request.use((config) => {
   if ((config.method || "get").toLowerCase() === "get") {
-    const y = getActiveYear();
-    if (y && y !== "all") {
-      config.params = { ...(config.params || {}), year: y };
+    const path = (config.url || "").split("?")[0];
+    const skipYear = YEARLESS_GETS.some((p) => path === p || path.startsWith(`${p}/`));
+    if (!skipYear) {
+      const y = getActiveYear();
+      if (y && y !== "all") {
+        config.params = { ...(config.params || {}), year: y };
+      }
     }
   }
   return config;
 });
+
+// Preview / keep-alive can drop a connection with ERR_EMPTY_RESPONSE.
+// Retry the GET once so Members/Chanda still load.
+client.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const cfg = err?.config;
+    if (!cfg || cfg.__retried) return Promise.reject(err);
+    const method = (cfg.method || "get").toLowerCase();
+    const noResponse = !err.response;
+    if (method === "get" && noResponse) {
+      cfg.__retried = true;
+      await new Promise((r) => setTimeout(r, 250));
+      return client.request(cfg);
+    }
+    return Promise.reject(err);
+  },
+);
 
 export const yearApi = {
   list: () => client.get("/years").then((r) => r.data),

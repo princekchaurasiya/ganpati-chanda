@@ -32,14 +32,22 @@ export default function Members() {
 
   const load = async () => {
     setLoading(true);
-    const [m, t, l, c] = await Promise.all([
-      memberApi.summary(), transferApi.list(), ledgerApi.get(), collectorApi.list()
-    ]);
-    setMembers(m.members || []);
-    setTransfers(t || []);
-    setLedger(l.entries || []);
-    setCollectors(c || []);
-    setLoading(false);
+    try {
+      const [m, t, l, c] = await Promise.all([
+        memberApi.summary(),
+        transferApi.list(),
+        ledgerApi.get(),
+        collectorApi.list().catch(() => []),
+      ]);
+      setMembers(m.members || []);
+      setTransfers(t || []);
+      setLedger(l.entries || []);
+      setCollectors(c || []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || err?.message || "Members load nahi hua");
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 

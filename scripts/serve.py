@@ -40,7 +40,7 @@ def main() -> None:
         fd=sock.fileno(),
         proxy_headers=True,
         forwarded_allow_ips="*",
-        timeout_keep_alive=75,
+        timeout_keep_alive=5,
         log_level="info",
     )
     print(f"Listening dual-stack on *:{PORT} (127.0.0.1 and ::1)", flush=True)

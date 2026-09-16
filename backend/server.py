@@ -534,7 +534,7 @@ async def delete_receipt_book(book_id: str):
 
 # ============= Collector Routes =============
 @api_router.get("/collectors", response_model=List[Collector])
-async def list_collectors():
+async def list_collectors(year: Optional[str] = None):
     return await db.collectors.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
 
 
@@ -1244,6 +1244,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def close_api_connections(request, call_next):
+    """Avoid Preview/Chrome ERR_EMPTY_RESPONSE on reused keep-alive sockets."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/api") or path == "/health":
+        response.headers["Connection"] = "close"
+    return response
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 if FRONTEND_BUILD.is_dir():
