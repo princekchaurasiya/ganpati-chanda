@@ -27,7 +27,7 @@ api_router = APIRouter(prefix="/api")
 # ============= Models =============
 PaymentMode = Literal["Cash", "UPI", "Bank Transfer", "Other"]
 Status = Literal["Pending", "Collected"]
-ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Mandap", "Murti", "Banner", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Other"]
+ExpenseCategory = Literal["Materials", "Food", "Decoration", "Rent", "Utilities", "Transport", "Mandap", "Murti", "Banner", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Other"]
 
 
 class ChandaBase(BaseModel):

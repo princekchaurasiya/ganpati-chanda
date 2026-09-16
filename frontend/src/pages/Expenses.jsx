@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 import { mergeEvents, colorForEvent } from "@/lib/events";
 
-const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 
 const catColor = {
@@ -20,6 +20,7 @@ const catColor = {
   Documents: { bg: "bg-slate-50", text: "text-slate-700" },
   "Dahi Handi": { bg: "bg-emerald-50", text: "text-emerald-700" },
   "Aarti Samagri": { bg: "bg-violet-50", text: "text-violet-700" },
+  "Band Baja": { bg: "bg-fuchsia-50", text: "text-fuchsia-700" },
   Materials: { bg: "bg-blue-50", text: "text-blue-700" },
   Food: { bg: "bg-orange-50", text: "text-orange-700" },
   Rent: { bg: "bg-purple-50", text: "text-purple-700" },

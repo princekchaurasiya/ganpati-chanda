@@ -6,7 +6,7 @@ import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, 
 import { toast } from "sonner";
 import { DEFAULT_EVENT, mergeEvents } from "@/lib/events";
 
-const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
 
 export default function AddExpense() {
