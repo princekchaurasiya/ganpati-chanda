@@ -7,7 +7,8 @@ This is a local setup of the [ganpati-chanda](https://github.com/princekchaurasi
 ## What you can do
 
 - Add chanda with receipt book/number, collector, payment mode, event tag
-- Dashboard with collected / pending / expenses / member cash held
+- Dashboard with collected / pending / expenses / member group cash (Cash + GPay leftover vs pocket plus/minus)
+- Remaining Balance = chanda received − group-paid expenses (Cash + GPay still with members). Member Net is pocket hisab (includes personal kharch), so members minus ho sakte hain jab Remaining plus ho. Held wipe nahi hota — **Record group kharch** se expense lagao.
 - Members page: tap **Update** on a member to change collection, transfer, or paid amounts (not only the name)
 - Each member **Hisab PDF**: uska plus/minus NET HISAB + collections, transfers, expenses
 - Each member **Reports** menu: Chanda report (PDF/Excel) and Expense report (PDF/Excel)

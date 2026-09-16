@@ -14,18 +14,20 @@ export default function AddExpense() {
   const loc = useLocation();
   const editing = loc.state?.entry || null;
   const returnTo = loc.state?.returnTo;
+  const draft = (!editing && loc.state) || {};
+  const heldSpend = Boolean(draft.held_spend);
 
-  const [description, setDescription] = useState(editing?.description || "");
-  const [vendor, setVendor] = useState(editing?.vendor || "");
-  const [category, setCategory] = useState(editing?.category || "Materials");
-  const [totalBill, setTotalBill] = useState(editing?.total_bill ? String(editing.total_bill) : "");
-  const [amountPaid, setAmountPaid] = useState(editing?.amount_paid ? String(editing.amount_paid) : "");
-  const [groupFunds, setGroupFunds] = useState(editing?.group_funds_used !== undefined ? String(editing.group_funds_used) : "");
-  const [personal, setPersonal] = useState(editing?.personal_contribution !== undefined ? String(editing.personal_contribution) : "0");
+  const [description, setDescription] = useState(editing?.description || draft.description || "");
+  const [vendor, setVendor] = useState(editing?.vendor || draft.vendor || "");
+  const [category, setCategory] = useState(editing?.category || draft.category || "Materials");
+  const [totalBill, setTotalBill] = useState(editing?.total_bill ? String(editing.total_bill) : draft.total_bill ? String(draft.total_bill) : "");
+  const [amountPaid, setAmountPaid] = useState(editing?.amount_paid ? String(editing.amount_paid) : draft.amount_paid ? String(draft.amount_paid) : "");
+  const [groupFunds, setGroupFunds] = useState(editing?.group_funds_used !== undefined ? String(editing.group_funds_used) : draft.group_funds_used !== undefined ? String(draft.group_funds_used) : "");
+  const [personal, setPersonal] = useState(editing?.personal_contribution !== undefined ? String(editing.personal_contribution) : draft.personal_contribution !== undefined ? String(draft.personal_contribution) : "0");
   const [paidBy, setPaidBy] = useState(editing?.paid_by || loc.state?.paid_by || "");
-  const [mode, setMode] = useState(editing?.payment_mode || "Cash");
+  const [mode, setMode] = useState(editing?.payment_mode || draft.payment_mode || "Cash");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
-  const [note, setNote] = useState(editing?.note || "");
+  const [note, setNote] = useState(editing?.note || draft.note || "");
   const [event, setEvent] = useState(editing?.event || eventForCategory(editing?.category));
   const [availableEvents, setAvailableEvents] = useState(mergeEvents([editing?.event].filter(Boolean)));
   const [members, setMembers] = useState([]);
@@ -50,9 +52,10 @@ export default function AddExpense() {
   const splitMismatch = Math.abs(splitSum - paidNum) > 0.01;
   const overGroupCash = !editing && groupNum > availableGroupCash;
 
-  // Auto-suggest split when Amount Paid or Paid By changes
+  // Auto-suggest split when Amount Paid or Paid By changes (skip held-spend draft — already prefilled)
   useEffect(() => {
     if (editing) return;
+    if (heldSpend) return;
     if (paidNum <= 0 || !paidBy) return;
     const suggestedGroup = Math.min(paidNum, Math.max(availableGroupCash, 0));
     setGroupFunds(String(Math.round(suggestedGroup)));
@@ -114,6 +117,12 @@ export default function AddExpense() {
       </div>
 
       <form onSubmit={submit} className="card-elevated p-5 space-y-5">
+        {heldSpend && (
+          <div className="rounded-xl bg-teal-50 border border-teal-100 p-3 text-sm text-teal-900" data-testid="exp-held-spend-banner">
+            <div className="font-semibold">{paidBy || "Member"} ke paas {formatINR(Number(draft.group_funds_used) || 0)} group cash (Cash + GPay) books par unspent hai.</div>
+            <div className="text-[12px] text-teal-800 mt-0.5">Bill/description daalo aur save karo. Held wipe nahi hota — group funds isi expense pe lagenge.</div>
+          </div>
+        )}
         <div>
           <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-1.5">
             <Receipt size={15} /> Description

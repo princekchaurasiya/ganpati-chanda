@@ -6,6 +6,7 @@ import { TrendingDown, Users, Wallet, Sparkles, Scale, Receipt, HandCoins, Chevr
 import { toast } from "sonner";
 import { colorForEvent } from "@/lib/events";
 import { downloadMembersHisabPDF } from "@/lib/exports";
+import { goRecordHeldKharch } from "@/lib/heldSpend";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -87,6 +88,7 @@ export default function Dashboard() {
   const recent = chandas.filter((x) => !x.voided).slice(0, 5);
   const receivedPct = ch.total_promised > 0 ? Math.round((ch.total_received / ch.total_promised) * 100) : 0;
   const paidPct = ex.total_bill > 0 ? Math.round((ex.total_paid / ex.total_bill) * 100) : 0;
+  const pocketNet = members.reduce((s, m) => s + memberNet(m), 0);
 
   return (
     <div className="space-y-5" data-testid="dashboard-page">
@@ -95,7 +97,7 @@ export default function Dashboard() {
         className={`card-elevated p-5 sm:p-6 text-left w-full hover:brightness-95 active:scale-[0.995] transition-transform focus:outline-none focus:ring-2 focus:ring-teal-400 ${stats.balance >= 0 ? "bg-gradient-to-br from-teal-50 via-white to-emerald-50" : "bg-gradient-to-br from-orange-50 via-white to-red-50"}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-            <Scale size={16} /> Remaining Balance (Available Cash)
+            <Scale size={16} /> Remaining Balance (Group leftover)
           </div>
           <ChevronRight size={16} className="text-slate-400" />
         </div>
@@ -104,6 +106,9 @@ export default function Dashboard() {
         </div>
         <div className="mt-1 text-xs text-slate-600 font-num">
           Received {formatINR(ch.total_received)} − Group Paid {formatINR(mp.total_paid_to_expenses_group)} · <span className="text-teal-700 font-medium">tap to tally</span>
+        </div>
+        <div className="mt-1.5 text-[11px] text-slate-500" data-testid="stat-balance-held-note">
+          Group leftover = Cash + GPay still with members. Pocket hisab {pocketNet > 0.01 ? "+" : ""}{formatINR(pocketNet)} alag hai — members minus ho sakte hain personal kharch se.
         </div>
       </button>
 
@@ -148,7 +153,7 @@ export default function Dashboard() {
           <Wallet size={16} className="text-teal-700" /> Money Position
         </h2>
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat testid="stat-cash-held" label="Cash Held by Members" value={formatINR(mp.cash_held)} color="teal" onClick={() => setModalKind("members-cash")} />
+          <MiniStat testid="stat-cash-held" label="Group cash (Cash+GPay)" value={formatINR(mp.cash_held)} color="teal" onClick={() => setModalKind("members-cash")} />
           <MiniStat testid="stat-paid-total" label="Paid Toward Expenses" value={formatINR(mp.total_paid_to_expenses)} color="red" onClick={() => setModalKind("expenses-all")} />
         </div>
       </section>
@@ -188,7 +193,7 @@ export default function Dashboard() {
                   <th className="py-2 px-2 font-semibold text-right font-num">Collected</th>
                   <th className="py-2 px-2 font-semibold text-right font-num">Trf</th>
                   <th className="py-2 px-2 font-semibold text-right font-num">Paid</th>
-                  <th className="py-2 pl-2 font-semibold text-right font-num">Net</th>
+                  <th className="py-2 pl-2 font-semibold text-right font-num">Net (pocket)</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,7 +224,7 @@ export default function Dashboard() {
                   return (
                     <tr className="border-t-2 border-slate-200 bg-slate-50" data-testid="members-hisab-footer">
                       <td className="py-2.5 pr-2 text-xs font-semibold text-slate-700" colSpan={4}>
-                        Hisab · Plus {formatINR(plus)} · Minus {formatINR(minus)}
+                        Pocket hisab · Plus {formatINR(plus)} · Minus {formatINR(minus)} — Remaining upar group leftover hai
                       </td>
                       <td className={`py-2.5 pl-2 text-right font-num font-extrabold ${net < -0.01 ? "text-red-700" : net < 0.01 ? "text-slate-600" : "text-emerald-700"}`}>
                         {net > 0.01 ? "+" : ""}{formatINR(net)}
@@ -444,7 +449,7 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
     "expenses-all": { title: "All Expenses", body: () => <ExpenseRows entries={activeExp} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
     "expenses-payable": { title: "Payable Bills", body: () => <ExpenseRows entries={activeExp.filter((e) => (e.total_bill - e.amount_paid) > 0.01)} onEdit={(e) => { onClose(); nav("/expenses/add", { state: { entry: e } }); }} />, deepLink: "/expenses" },
     "members-cash": {
-      title: "Cash Held by Members",
+      title: "Group cash with members (Cash + GPay)",
       body: () => {
         const heldMembers = members.filter((m) => Math.abs(m.current_held) > 0.01);
         const pos = heldMembers.filter((m) => m.current_held > 0).reduce((s, m) => s + m.current_held, 0);
@@ -454,7 +459,7 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
           <div>
             <div className="mx-2 my-2 rounded-xl bg-slate-50 p-3 text-xs" data-testid="members-cash-summary">
               <div className="flex items-center justify-between">
-                <span className="text-slate-600">Members holding cash</span>
+                <span className="text-slate-600">Unspent group funds (Cash + GPay)</span>
                 <span className="font-num font-bold text-emerald-700">+{formatINR(pos)}</span>
               </div>
               {neg < -0.01 && (
@@ -464,15 +469,16 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
                 </div>
               )}
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
-                <span className="text-slate-800 font-semibold">Net cash with members</span>
+                <span className="text-slate-800 font-semibold">Net group cash with members</span>
                 <span className={`font-num font-extrabold ${net >= 0 ? "text-teal-800" : "text-red-800"}`}>{formatINR(net)}</span>
               </div>
-              <div className="text-[10px] text-slate-500 mt-1">Should match Balance tile</div>
+              <div className="text-[10px] text-slate-500 mt-1">Physical nikaal nahi — UPI/GPay bhi yahan count. Should match Remaining tile. Agar kharch ho chuka hai to Record group kharch — held wipe nahi hota.</div>
             </div>
             <MemberRows
               members={heldMembers.sort((a, b) => b.current_held - a.current_held)}
               onOpen={(m) => { onClose(); nav(`/members/${encodeURIComponent(m.name)}`); }}
               field="current_held"
+              onRecordKharch={(m) => goRecordHeldKharch(nav, m.name, m.current_held, "/", onClose)}
             />
           </div>
         );
@@ -666,26 +672,37 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
           <div className="rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
             <div className="px-3 py-2 border-b border-slate-200">
               <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Ye ₹{Math.round(balance)} kis-kis ke paas hai?</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Balance = jitna paisa members ke paas physically hai (+ve me hai) minus jitna group unhe wapas dena hai (-ve me hai)</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Physical nikaal nahi — unspent group funds (Cash + GPay/UPI). Prince/Mogli jaisa jab kharch ho chuka ho to Record group kharch; held wipe nahi hota.</div>
             </div>
             <div className="divide-y divide-slate-100">
               {heldMembers.sort((a, b) => b.current_held - a.current_held).map((m) => (
-                <button key={m.name} type="button"
-                  onClick={() => switchKind && switchKind(`member:${m.name}`)}
-                  data-testid={`tally-held-${m.name}`}
-                  className="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-100 text-left">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${m.current_held < 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
-                    {m.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">{m.name}</div>
-                    {m.current_held < 0 && <div className="text-[10px] text-red-600">group ko wapas dena hai</div>}
-                  </div>
-                  <span className={`font-num font-bold ${m.current_held < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                    {m.current_held >= 0 ? "+" : ""}{formatINR(m.current_held)}
-                  </span>
-                  <ChevronRight size={13} className="text-slate-400" />
-                </button>
+                <div key={m.name} className="px-3 py-2 flex items-center gap-2" data-testid={`tally-held-${m.name}`}>
+                  <button type="button"
+                    onClick={() => switchKind && switchKind(`member:${m.name}`)}
+                    className="flex-1 min-w-0 flex items-center gap-2 hover:bg-slate-100 text-left rounded-lg -mx-1 px-1 py-0.5">
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${m.current_held < 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                      {m.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-800 truncate">{m.name}</div>
+                      {m.current_held < 0 && <div className="text-[10px] text-red-600">group ko wapas dena hai</div>}
+                      {m.current_held > 0.01 && <div className="text-[10px] text-slate-500">Cash + GPay unspent</div>}
+                    </div>
+                    <span className={`font-num font-bold ${m.current_held < 0 ? "text-red-700" : "text-emerald-700"}`}>
+                      {m.current_held >= 0 ? "+" : ""}{formatINR(m.current_held)}
+                    </span>
+                  </button>
+                  {m.current_held > 0.01 && (
+                    <button
+                      type="button"
+                      onClick={() => goRecordHeldKharch(nav, m.name, m.current_held, "/", onClose)}
+                      data-testid={`tally-record-kharch-${m.name}`}
+                      className="shrink-0 h-8 px-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold"
+                    >
+                      Record kharch
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             <div className="px-3 py-2 bg-white border-t border-slate-200 flex items-center justify-between text-xs">
@@ -700,7 +717,7 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
           </div>
 
           <div className="text-[10px] text-slate-500 text-center px-2">
-            Note: In-group transfers (member↔member) don't change the group's total balance — they just move cash between members.
+            Note: In-group transfers (member↔member) Remaining nahi badalte — Cash + GPay dono group cash hain jab tak expense pe group funds na lage.
           </div>
         </div>
       ),
@@ -869,7 +886,7 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
     const mem = members.find((m) => m.name === mname);
     if (mem) {
       conf = {
-        title: `${mname} — Cash Held Tally`,
+        title: `${mname} — Group cash tally (Cash + GPay)`,
         body: () => (
           <div className="p-3 space-y-2 text-sm" data-testid={`held-tally-${mname}`}>
             <TallyRow label="Received (own collections)" amount={mem.total_received} tone="emerald" />
@@ -881,6 +898,17 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
               <span className="font-semibold">Currently Held</span>
               <span className="font-num text-xl font-extrabold">{formatINR(mem.current_held)}</span>
             </div>
+            {mem.current_held > 0.01 && (
+              <button
+                type="button"
+                onClick={() => goRecordHeldKharch(nav, mname, mem.current_held, `/members/${encodeURIComponent(mname)}`, onClose)}
+                data-testid={`held-record-kharch-${mname}`}
+                className="w-full h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm"
+              >
+                Record group kharch {formatINR(mem.current_held)}
+              </button>
+            )}
+            <div className="text-[11px] text-slate-500">Cash + GPay dono yahan hain. Kharch ho chuka ho to bill daalo — held 0 nahi kiya jaata without expense.</div>
           </div>
         ),
         deepLink: `/members/${encodeURIComponent(mname)}`,
@@ -1154,7 +1182,7 @@ function SumCell({ label, value, tone, onClick, testid }) {
 
 
 
-function MemberRows({ members, onOpen, field, cta }) {
+function MemberRows({ members, onOpen, field, cta, onRecordKharch }) {
   if (members.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">Nothing here.</div>;
   return (
     <div className="divide-y divide-slate-100">
@@ -1166,6 +1194,16 @@ function MemberRows({ members, onOpen, field, cta }) {
             <div className="text-[10px] text-slate-500">Collected {formatINR(m.total_received)}</div>
           </div>
           <div className="font-num font-bold text-sm text-slate-900 shrink-0">{formatINR(m[field])}</div>
+          {onRecordKharch && (m[field] || 0) > 0.01 && (
+            <button
+              type="button"
+              onClick={() => onRecordKharch(m)}
+              data-testid={`modal-record-kharch-${m.name}`}
+              className="h-8 px-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold shrink-0"
+            >
+              Record kharch
+            </button>
+          )}
           <button onClick={() => onOpen(m)} data-testid={`modal-open-${m.name}`}
             className={`h-8 px-2 rounded-lg text-xs font-semibold shrink-0 ${cta ? "bg-teal-600 text-white hover:bg-teal-700" : "hover:bg-slate-100 text-slate-500"}`}>
             {cta || <ChevronRight size={14} />}

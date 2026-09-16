@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "exported_at": "2026-09-16T11:42:42.475784+00:00",
+  "exported_at": "2026-09-16T12:31:41.018600+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -2132,13 +2132,13 @@
       "date": "2026-09-12",
       "description": "Murti Ka paisa",
       "event": "Ganpati Mandap",
-      "group_funds_used": 10229.0,
-      "note": null,
+      "group_funds_used": 14329.0,
+      "note": "Monu leftover GPay ₹4100 group funds me shift (pehle personal tha — Prince/Mogli jaisa kharch already is bill pe).",
       "paid_by": "Monu",
       "payment_mode": "UPI",
-      "personal_contribution": 9771.0,
+      "personal_contribution": 5671.0,
       "total_bill": 65000.0,
-      "updated_at": "2026-09-15T18:03:29.508045+00:00",
+      "updated_at": "2026-09-16T12:31:17.135268+00:00",
       "vendor": "Murti Vale ko Monu Ki taraf se",
       "voided": false
     },

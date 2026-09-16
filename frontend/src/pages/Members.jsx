@@ -322,7 +322,7 @@ export default function Members() {
                         {memberNet(m) > 0.01 ? "+" : ""}{formatINR(memberNet(m))}
                       </div>
                       {Math.abs((m.current_held || 0) - memberNet(m)) > 0.01 && (
-                        <div className="text-[10px] text-slate-500">Group cash {formatINR(m.current_held)}</div>
+                        <div className="text-[10px] text-slate-500">Group cash (Cash+GPay) {formatINR(m.current_held)}</div>
                       )}
                     </div>
                     <DropdownMenu>
@@ -397,7 +397,7 @@ export default function Members() {
                       {memberNet(m) > 0.01 ? "+" : ""}{formatINR(memberNet(m))}
                     </div>
                     {Math.abs((m.current_held || 0) - memberNet(m)) > 0.01 && (
-                      <div className="text-[10px] text-slate-500">Group cash {formatINR(m.current_held)}</div>
+                      <div className="text-[10px] text-slate-500">Group cash (Cash+GPay) {formatINR(m.current_held)}</div>
                     )}
                   </div>
                   <div

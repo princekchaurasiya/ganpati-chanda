@@ -8,6 +8,7 @@ import MemberEditSheet from "@/components/MemberEditSheet";
 import ChandaSlipFilters from "@/components/ChandaSlipFilters";
 import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, personalChandasForMember } from "@/lib/exports";
 import { useChandaSlipFilters } from "@/lib/chandaFilters";
+import { goRecordHeldKharch } from "@/lib/heldSpend";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
@@ -296,7 +297,7 @@ export default function MemberDetail() {
           {s.transferred_in > 0 && <> +{formatINR(s.transferred_in)} in</>}
           {s.transferred_out > 0 && <> −{formatINR(s.transferred_out)} out</>}
           {s.paid_to_expenses > 0 && <> −{formatINR(s.paid_to_expenses)} paid</>}
-          {Math.abs((s.current_held || 0) - memberNet(s)) > 0.01 && <> · group cash {formatINR(s.current_held)}</>}
+          {Math.abs((s.current_held || 0) - memberNet(s)) > 0.01 && <> · group cash (Cash+GPay) {formatINR(s.current_held)}</>}
         </div>
       </button>
       )}
@@ -311,7 +312,7 @@ export default function MemberDetail() {
         <MiniCard testid="mini-group-paid" label="Group Funds Paid" value={formatINR(s.group_funds_paid || 0)} color="red" onClick={(s.group_funds_paid || 0) > 0 ? () => setModalKind("group_paid") : null} />
         <MiniCard testid="mini-personal" label="Personal Contribution" value={formatINR(s.personal_contribution || 0)} sub={s.reimbursement_due > 0.01 ? `${formatINR(s.reimbursement_due)} due` : "Fully reimbursed"} color="amber" onClick={(s.personal_contribution || 0) > 0 ? () => setModalKind("personal") : null} />
         <MiniCard testid="mini-reimb-in" label="Reimbursement Received" value={formatINR(s.reimbursement_received || 0)} color="emerald" onClick={(s.reimbursement_received || 0) > 0 ? () => setModalKind("reimb_in") : null} />
-        <MiniCard testid="mini-held" label="Current Group Held" value={formatINR(s.current_held)} color={s.current_held < 0 ? "red" : "emerald"} onClick={() => setModalKind("held")} />
+        <MiniCard testid="mini-held" label="Group cash (Cash+GPay)" value={formatINR(s.current_held)} color={s.current_held < 0 ? "red" : "emerald"} onClick={() => setModalKind("held")} />
       </div>
       )}
 
@@ -649,8 +650,8 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
   } else if (kind === "held") {
     const received = s.total_received;
     const held = s.current_held;
-    title = "Cash Held Tally";
-    subtitle = `${name}'s available group cash`;
+    title = "Group cash tally (Cash + GPay)";
+    subtitle = `${name}'s unspent group funds — physical nikaal nahi`;
     body = (
       <div className="p-3 space-y-2 text-sm" data-testid="held-tally">
         <TallyRow label="Received (own collections)" amount={received} tone="emerald" />
@@ -662,6 +663,17 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
           <span className="font-semibold">Currently Held</span>
           <span className="font-num text-xl font-extrabold">{formatINR(held)}</span>
         </div>
+        {held > 0.01 && (
+          <button
+            type="button"
+            onClick={() => goRecordHeldKharch(nav, name, held, returnTo, onClose)}
+            data-testid="held-record-kharch-btn"
+            className="w-full h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm"
+          >
+            Record group kharch {formatINR(held)}
+          </button>
+        )}
+        <div className="text-[11px] text-slate-500">Cash + GPay dono yahan hain. Kharch ho chuka ho to bill daalo — held without expense 0 nahi hota.</div>
         {donations.length > 0 && (
           <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-2">
             Note: {name} ne khud {formatINR(donations.reduce((s, d) => s + (d.received_amount || d.amount || 0), 0))} chanda diya — wo alag hai (upper amber card me hai).
