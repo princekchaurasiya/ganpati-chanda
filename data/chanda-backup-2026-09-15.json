@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exported_at": "2026-09-16T08:49:07.597993+00:00",
+  "exported_at": "2026-09-16T09:16:40.205509+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -1868,18 +1868,18 @@
     {
       "id": "059cd0b8-b8f0-4f8b-8245-8effd3306e4a",
       "amount_paid": 5000.0,
-      "category": "Murti",
+      "category": "Murti Dye",
       "created_at": "2026-09-11T18:00:58.830311+00:00",
       "date": "2026-09-11",
-      "description": "Murti token",
-      "event": "Ganpati Mandap",
+      "description": "Murti dye for molding",
+      "event": "Murti Dye",
       "group_funds_used": 1502.0,
-      "note": "Token amount — expected ₹5,000, paid ₹5,000",
+      "note": "Molding dye used on murti — not the idol. Spent by Mogli ₹5000.",
       "paid_by": "Mogli",
       "payment_mode": "Cash",
       "personal_contribution": 3498.0,
       "total_bill": 5000.0,
-      "updated_at": "2026-09-15T18:41:36.874366+00:00",
+      "updated_at": "2026-09-16T09:16:26.155463+00:00",
       "vendor": "Murti wala",
       "voided": false
     },

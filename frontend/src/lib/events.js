@@ -1,12 +1,21 @@
 // Event / Purpose tag used to group Chanda and Expenses by occasion
 // (e.g. Ganpati Mandap vs Dahi Handi). Keep this list minimal — additional
 // values already saved in the DB are auto-merged via `mergeEvents()`.
-export const DEFAULT_EVENTS = ["Ganpati Mandap", "Dahi Handi"];
+export const DEFAULT_EVENTS = ["Ganpati Mandap", "Dahi Handi", "Murti Dye"];
 export const DEFAULT_EVENT = "Ganpati Mandap";
+
+export const EVENT_FOR_CATEGORY = {
+  "Dahi Handi": "Dahi Handi",
+  "Murti Dye": "Murti Dye",
+};
+
+export const eventForCategory = (cat, fallback = DEFAULT_EVENT) =>
+  EVENT_FOR_CATEGORY[cat] || fallback;
 
 export const eventColor = {
   "Ganpati Mandap": { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
   "Dahi Handi": { bg: "bg-indigo-50", text: "text-indigo-700", dot: "bg-indigo-500" },
+  "Murti Dye": { bg: "bg-amber-50", text: "text-amber-800", dot: "bg-amber-500" },
   Other: { bg: "bg-slate-50", text: "text-slate-700", dot: "bg-slate-500" },
 };
 

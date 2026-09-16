@@ -4,9 +4,9 @@ import { expenseApi, memberApi, chandaApi } from "@/lib/api";
 import { todayISO, formatINR } from "@/lib/format";
 import { Save, ArrowLeft, Receipt, IndianRupee, Calendar as CalIcon, Tag, Info, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { DEFAULT_EVENT, mergeEvents } from "@/lib/events";
+import { DEFAULT_EVENT, mergeEvents, eventForCategory } from "@/lib/events";
 
-const CATEGORIES = ["Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["Mandap", "Murti", "Murti Dye", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["Cash", "UPI", "Bank Transfer", "Other"];
 
 export default function AddExpense() {
@@ -26,7 +26,7 @@ export default function AddExpense() {
   const [mode, setMode] = useState(editing?.payment_mode || "Cash");
   const [dateStr, setDateStr] = useState(editing?.date || todayISO());
   const [note, setNote] = useState(editing?.note || "");
-  const [event, setEvent] = useState(editing?.event || (editing?.category === "Dahi Handi" ? "Dahi Handi" : DEFAULT_EVENT));
+  const [event, setEvent] = useState(editing?.event || eventForCategory(editing?.category));
   const [availableEvents, setAvailableEvents] = useState(mergeEvents([editing?.event].filter(Boolean)));
   const [members, setMembers] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -163,8 +163,15 @@ export default function AddExpense() {
           </label>
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map((c) => (
-              <button type="button" key={c} onClick={() => setCategory(c)}
-                data-testid={`exp-cat-btn-${c.toLowerCase()}`}
+              <button type="button" key={c} onClick={() => {
+                setCategory(c);
+                const mapped = eventForCategory(c, null);
+                if (mapped) {
+                  setEvent(mapped);
+                  setAvailableEvents((s) => (s.includes(mapped) ? s : [...s, mapped]));
+                }
+              }}
+                data-testid={`exp-cat-btn-${c.toLowerCase().replace(/\s+/g, "-")}`}
                 className={`chip ${category === c ? "chip-active" : ""}`}>{c}</button>
             ))}
           </div>

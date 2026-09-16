@@ -8,12 +8,13 @@ import { toast } from "sonner";
 import { downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 import { mergeEvents, colorForEvent } from "@/lib/events";
 
-const CATEGORIES = ["All", "Mandap", "Murti", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
+const CATEGORIES = ["All", "Mandap", "Murti", "Murti Dye", "Banner", "Decoration", "Police & BMC", "Documents", "Dahi Handi", "Aarti Samagri", "Band Baja", "Materials", "Food", "Rent", "Utilities", "Transport", "Other"];
 const MODES = ["All", "Cash", "UPI", "Bank Transfer", "Other"];
 
 const catColor = {
   Mandap: { bg: "bg-indigo-50", text: "text-indigo-700" },
   Murti: { bg: "bg-rose-50", text: "text-rose-700" },
+  "Murti Dye": { bg: "bg-amber-50", text: "text-amber-800" },
   Banner: { bg: "bg-yellow-50", text: "text-yellow-700" },
   Decoration: { bg: "bg-pink-50", text: "text-pink-700" },
   "Police & BMC": { bg: "bg-red-50", text: "text-red-700" },
