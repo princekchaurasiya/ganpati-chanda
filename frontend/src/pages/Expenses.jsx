@@ -345,6 +345,7 @@ export default function Expenses() {
           byPayer[key].total += e.amount_paid || 0;
           byPayer[key].entries.push(e);
         });
+        const payerCount = Object.keys(byPayer).length;
         const visibleEntries = payerFocus ? (byPayer[payerFocus]?.entries || []) : info.entries;
         const visibleTotal = payerFocus ? (byPayer[payerFocus]?.total || 0) : info.total;
         return (
@@ -366,7 +367,7 @@ export default function Expenses() {
                       <div className="text-[11px] text-slate-500 shrink-0">· {visibleEntries.length} {visibleEntries.length === 1 ? "entry" : "entries"}</div>
                     </>
                   ) : (
-                    <div className="text-xs text-slate-500">{info.count} {info.count === 1 ? "entry" : "entries"}</div>
+                    <div className="text-xs text-slate-500">{payerCount} {payerCount === 1 ? "entry" : "entries"}</div>
                   )}
                 </div>
                 <button onClick={() => setCatDetail(null)} data-testid="exp-cat-modal-close" className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
