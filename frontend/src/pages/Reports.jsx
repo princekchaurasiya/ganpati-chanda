@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { chandaApi, collectorApi, memberApi } from "@/lib/api";
+import { chandaApi, collectorApi, memberApi, expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
-import { FileText, FileSpreadsheet, FileDown, Share2, Scale } from "lucide-react";
-import { downloadMembersHisabPDF } from "@/lib/exports";
+import { FileText, FileSpreadsheet, FileDown, Share2, Scale, Receipt } from "lucide-react";
+import { downloadMembersHisabPDF, downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -39,10 +39,16 @@ export default function Reports() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [members, setMembers] = useState([]);
+  const [expenses, setExpenses] = useState([]);
 
   useEffect(() => {
-    Promise.all([chandaApi.list(), collectorApi.list(), memberApi.summary().catch(() => ({ members: [] }))]).then(([e, c, m]) => {
-      setEntries(e); setCollectors(c); setMembers(m.members || []);
+    Promise.all([
+      chandaApi.list(),
+      collectorApi.list(),
+      memberApi.summary().catch(() => ({ members: [] })),
+      expenseApi.list().catch(() => []),
+    ]).then(([e, c, m, x]) => {
+      setEntries(e); setCollectors(c); setMembers(m.members || []); setExpenses(x || []);
     });
   }, []);
 
@@ -217,6 +223,41 @@ export default function Reports() {
         >
           <Scale size={18} /> Hisab PDF — plus / minus
         </button>
+      </section>
+
+      <section className="card-elevated p-5 space-y-2" data-testid="expense-type-export-card">
+        <h2 className="font-semibold text-slate-900">Expense report — type / collection / person</h2>
+        <p className="text-sm text-slate-600">
+          Murti me kitna, Dahi Handi me kitna, kisne kharcha kiya — category, collection, aur person teeno ek PDF/Excel mein.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                downloadExpensesPDF(expenses);
+                toast.success("Expense PDF downloaded");
+              } catch { toast.error("PDF export failed"); }
+            }}
+            data-testid="reports-expense-pdf-btn"
+            className="h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-2"
+          >
+            <Receipt size={18} /> Expense PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                downloadExpensesExcel(expenses);
+                toast.success("Expense Excel downloaded");
+              } catch { toast.error("Excel export failed"); }
+            }}
+            data-testid="reports-expense-excel-btn"
+            className="h-12 rounded-xl bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 font-semibold flex items-center justify-center gap-2"
+          >
+            <FileSpreadsheet size={18} /> Expense Excel
+          </button>
+        </div>
       </section>
 
       {/* Filters */}

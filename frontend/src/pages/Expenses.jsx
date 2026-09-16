@@ -128,7 +128,7 @@ export default function Expenses() {
           <button
             onClick={() => { try { downloadExpensesPDF(filtered, byCategory); toast.success("PDF downloaded"); } catch { toast.error("PDF export failed"); } }}
             data-testid="exp-export-pdf-btn"
-            title="Export PDF"
+            title="Category, collection, aur person wala PDF"
             className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
           >
             <FileText size={16} /> PDF
@@ -136,7 +136,7 @@ export default function Expenses() {
           <button
             onClick={() => { try { downloadExpensesExcel(filtered, byCategory); toast.success("Excel downloaded"); } catch { toast.error("Excel export failed"); } }}
             data-testid="exp-export-excel-btn"
-            title="Export Excel"
+            title="Category, collection, aur person wala Excel"
             className="h-10 px-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-1 text-sm"
           >
             <FileSpreadsheet size={16} /> Excel

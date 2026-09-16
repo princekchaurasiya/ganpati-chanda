@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
+import { formatDate, formatDateTimeIST } from "@/lib/format";
 
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const dt = () => new Date().toISOString().slice(0, 10);
@@ -28,66 +28,128 @@ const expCellText = (e, k) => {
   if (k === "event") return e.event || "Ganpati Mandap";
   return e[k] || "";
 };
-const expCellPDF = (e, k) => {
-  if (k === "date") return formatDate(e.date);
-  if (k === "amount_paid" || k === "total_bill") return formatRs(e[k] || 0);
-  if (k === "event") return e.event || "Ganpati Mandap";
-  return e[k] || "-";
+
+const groupExpenses = (entries, keyFn) => {
+  const map = {};
+  entries.forEach((e) => {
+    const k = keyFn(e) || "-";
+    if (!map[k]) map[k] = { key: k, count: 0, total: 0, bill: 0, entries: [] };
+    map[k].count += 1;
+    map[k].total += e.amount_paid || 0;
+    map[k].bill += e.total_bill || 0;
+    map[k].entries.push(e);
+  });
+  return Object.values(map).sort((a, b) => b.total - a.total);
 };
 
-export const exportExpensesPDF = (entries, byCategory, opts = {}) => {
-  const active = entries.filter((e) => !e.voided);
+const expEventOf = (e) => e.event || "Ganpati Mandap";
+const expCatOf = (e) => e.category || "Other";
+const expPayerOf = (e) => e.paid_by || "-";
+
+export const exportExpensesPDF = (entries, _byCategory, opts = {}) => {
+  const active = (entries || []).filter((e) => !e.voided);
   const totalPaid = active.reduce((s, e) => s + (e.amount_paid || 0), 0);
   const totalBill = active.reduce((s, e) => s + (e.total_bill || 0), 0);
   const bakaya = totalBill - totalPaid;
+  const byCategory = groupExpenses(active, expCatOf);
+  const byEvent = groupExpenses(active, expEventOf);
+  const byPayer = groupExpenses(active, expPayerOf);
 
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: "portrait" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const left = 14;
+  const right = pageW - 14;
+
+  const ensureY = (y, need) => {
+    if (y + need > pageH - 14) {
+      doc.addPage();
+      return 16;
+    }
+    return y;
+  };
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Expense Report", 14, 16);
+  doc.setFontSize(18);
+  doc.setTextColor(15, 23, 42);
+  doc.text(opts.title || "Expense Report", left, 18);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 22);
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, left, 24);
 
-  doc.setFontSize(11);
-  doc.setTextColor(0);
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
   const summary = [
-    `Total Expenses: ${active.length}`,
-    `Total Paid:     ${formatRs(totalPaid)}`,
-    `Total Bill:     ${formatRs(totalBill)}`,
+    `Total expenses: ${active.length}`,
+    `Total paid:     ${formatRs(totalPaid)}`,
+    `Total bill:     ${formatRs(totalBill)}`,
     ...(bakaya > 0.01 ? [`Bakaya:         ${formatRs(bakaya)}`] : []),
   ];
-  summary.forEach((s, i) => doc.text(s, 14, 32 + i * 6));
+  summary.forEach((s, i) => doc.text(s, left, 34 + i * 7));
+  let y = 34 + summary.length * 7 + 8;
 
-  let y = 32 + summary.length * 6 + 4;
-
-  if (byCategory && byCategory.length) {
+  const writeSection = (heading, groups, head, rowFn) => {
+    y = ensureY(y, 28);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("By Category:", 14, y);
-    autoTable(doc, {
-      startY: y + 2,
-      head: [["Category", "Entries", "Paid"]],
-      body: byCategory.map(([cat, info]) => [cat, String(info.count), formatRs(info.total)]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [22, 163, 149] },
-      margin: { left: 14, right: 14 },
+    doc.setFontSize(14);
+    doc.setTextColor(13, 148, 136);
+    doc.text(heading, left, y);
+    y += 8;
+    if (!groups.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text("No expenses.", left, y);
+      y += 10;
+      return;
+    }
+    groups.forEach((g) => {
+      y = ensureY(y, 40);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      const nameLines = doc.splitTextToSize(g.key, pageW - 90);
+      doc.text(nameLines, left, y);
+      doc.text(formatRs(g.total), right, y, { align: "right" });
+      y += nameLines.length * 5 + 1;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(`${g.count} ${g.count === 1 ? "entry" : "entries"}`, left, y);
+      y += 3;
+      autoTable(doc, {
+        startY: y,
+        head: [head],
+        body: g.entries.map(rowFn),
+        styles: { fontSize: 8, cellPadding: 1.8 },
+        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        margin: { left, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 8;
     });
-    y = doc.lastAutoTable.finalY + 6;
-  }
+    y += 4;
+  };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Entries:", 14, y);
-  autoTable(doc, {
-    startY: y + 2,
-    head: [EXP_COLS.map((c) => c.label)],
-    body: active.map((e) => EXP_COLS.map((c) => expCellPDF(e, c.key))),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [22, 163, 149] },
-    margin: { left: 14, right: 14 },
-  });
+  writeSection(
+    "1. By category (type)",
+    byCategory,
+    ["Date", "Description", "Paid by", "Paid"],
+    (e) => [formatDate(e.date), e.description || "-", e.paid_by || "-", formatRs(e.amount_paid)],
+  );
+  writeSection(
+    "2. By collection / event",
+    byEvent,
+    ["Date", "Description", "Category", "Paid by", "Paid"],
+    (e) => [formatDate(e.date), e.description || "-", expCatOf(e), e.paid_by || "-", formatRs(e.amount_paid)],
+  );
+  writeSection(
+    "3. By person (kisne kharcha kiya)",
+    byPayer,
+    ["Date", "Description", "Category", "Paid"],
+    (e) => [formatDate(e.date), e.description || "-", expCatOf(e), formatRs(e.amount_paid)],
+  );
 
   return doc;
 };
@@ -97,31 +159,42 @@ export const downloadExpensesPDF = (entries, byCategory) => {
   doc.save(`expenses-${dt()}.pdf`);
 };
 
-export const downloadExpensesExcel = (entries, byCategory) => {
-  const active = entries.filter((e) => !e.voided);
+export const downloadExpensesExcel = (entries, _byCategory) => {
+  const active = (entries || []).filter((e) => !e.voided);
+  const totalPaid = active.reduce((s, e) => s + (e.amount_paid || 0), 0);
+  const totalBill = active.reduce((s, e) => s + (e.total_bill || 0), 0);
+  const byCategory = groupExpenses(active, expCatOf);
+  const byEvent = groupExpenses(active, expEventOf);
+  const byPayer = groupExpenses(active, expPayerOf);
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: By Category
-  if (byCategory && byCategory.length) {
-    const sumRows = byCategory.map(([cat, info]) => ({
-      Category: cat, Entries: info.count, Paid: info.total, Bill: info.bill,
-    }));
-    const totalPaid = active.reduce((s, e) => s + (e.amount_paid || 0), 0);
-    const totalBill = active.reduce((s, e) => s + (e.total_bill || 0), 0);
-    sumRows.push({ Category: "TOTAL", Entries: active.length, Paid: totalPaid, Bill: totalBill });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sumRows), "By Category");
-  }
+  const catRows = byCategory.map((g) => ({
+    Category: g.key, Entries: g.count, Paid: g.total, Bill: g.bill,
+  }));
+  catRows.push({ Category: "TOTAL", Entries: active.length, Paid: totalPaid, Bill: totalBill });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(catRows), "By Category");
 
-  // Sheet 2: All Entries
-  const rows = active.map((e) => {
+  const eventRows = byEvent.map((g) => ({
+    Event: g.key, Entries: g.count, Paid: g.total,
+  }));
+  eventRows.push({ Event: "TOTAL", Entries: active.length, Paid: totalPaid });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eventRows), "By Event");
+
+  const payerRows = byPayer.map((g) => ({
+    "Paid By": g.key, Entries: g.count, Paid: g.total,
+  }));
+  payerRows.push({ "Paid By": "TOTAL", Entries: active.length, Paid: totalPaid });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(payerRows), "By Payer");
+
+  const rows = active.length ? active.map((e) => {
     const r = {};
     EXP_COLS.forEach((c) => {
       if (c.key === "amount_paid" || c.key === "total_bill") r[c.label] = e[c.key] || 0;
       else r[c.label] = expCellText(e, c.key);
     });
-    r["Note"] = e.note || "";
+    r.Note = e.note || "";
     return r;
-  });
+  }) : [{ Date: "", Description: "No expenses" }];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Expenses");
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -693,6 +766,240 @@ export const downloadMemberExpenseReportExcel = (name, expenses) => {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Expenses");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   saveAs(new Blob([buf], { type: "application/octet-stream" }), `expense-${fileSafeName(name)}-${dt()}.xlsx`);
+};
+
+export const MEMBER_CHANDA_LIST_COLS = [
+  { key: "received", label: "Received", kind: "rollup" },
+  { key: "pending", label: "Pending", kind: "rollup" },
+  { key: "status", label: "Status", kind: "rollup" },
+  { key: "promised", label: "Promised", kind: "rollup" },
+  { key: "entries", label: "Entries", kind: "rollup" },
+  { key: "collector", label: "Collector", kind: "entry" },
+  { key: "date", label: "Date", kind: "entry" },
+  { key: "event", label: "Event", kind: "entry" },
+  { key: "mode", label: "Mode", kind: "entry" },
+  { key: "receipt", label: "Receipt", kind: "entry" },
+];
+
+export const MEMBER_CHANDA_LIST_DEFAULT_COLS = ["received", "pending", "status"];
+
+const personalChandasForMember = (chandas, memberName) => {
+  const n = String(memberName || "").toLowerCase().trim();
+  return (chandas || []).filter((c) => {
+    if (c.voided) return false;
+    if ((c.donor_member || "").toLowerCase().trim() === n) return true;
+    if ((c.name || "").toLowerCase().trim() === n && !c.donor_member) return true;
+    return false;
+  });
+};
+
+const chandaReceivedAmt = (c) => Number(c.received_amount != null ? c.received_amount : (c.status === "Collected" ? c.amount : 0)) || 0;
+
+const personalChandaStatus = (promised, received, pending) => {
+  if (promised <= 0.01) return "—";
+  if (pending <= 0.01) return "Aaya";
+  if (received <= 0.01) return "Pending";
+  return "Partial";
+};
+
+const STATUS_SORT = { Pending: 0, Partial: 1, Aaya: 2, "—": 3 };
+
+const receiptLabel = (c) => {
+  if (c.receipt_no == null && !c.receipt_book_name) return "-";
+  const book = c.receipt_book_name || "";
+  return c.receipt_no != null ? `${book ? `${book} / ` : ""}${c.receipt_no}` : (book || "-");
+};
+
+const buildMemberPersonalRows = (members, chandas) => {
+  const rows = (members || []).map((m) => {
+    const entries = personalChandasForMember(chandas, m.name);
+    const promised = entries.reduce((s, c) => s + Number(c.amount || 0), 0);
+    const received = entries.reduce((s, c) => s + chandaReceivedAmt(c), 0);
+    const pending = Math.max(0, promised - received);
+    const status = personalChandaStatus(promised, received, pending);
+    return { name: m.name, entries, promised, received, pending, status, count: entries.length };
+  });
+  rows.sort((a, b) => {
+    const d = (STATUS_SORT[a.status] ?? 9) - (STATUS_SORT[b.status] ?? 9);
+    if (d) return d;
+    return String(a.name).localeCompare(String(b.name));
+  });
+  return rows;
+};
+
+const selectedColDefs = (selectedCols) => {
+  const set = new Set(selectedCols || []);
+  return MEMBER_CHANDA_LIST_COLS.filter((c) => set.has(c.key));
+};
+
+const rollupCell = (row, key) => {
+  if (key === "received") return formatRs(row.received);
+  if (key === "pending") return formatRs(row.pending);
+  if (key === "promised") return formatRs(row.promised);
+  if (key === "entries") return String(row.count);
+  if (key === "status") return row.status;
+  return "";
+};
+
+const entryCell = (c, key) => {
+  if (key === "collector") return c.collector || "-";
+  if (key === "date") return formatDate(c.date);
+  if (key === "event") return c.event || "Ganpati Mandap";
+  if (key === "mode") return c.payment_mode || "-";
+  if (key === "receipt") return receiptLabel(c);
+  return "";
+};
+
+export const downloadMemberChandaListPDF = (members, chandas, selectedCols) => {
+  const cols = selectedColDefs(selectedCols);
+  const rollupCols = cols.filter((c) => c.kind === "rollup");
+  const entryCols = cols.filter((c) => c.kind === "entry");
+  const rows = buildMemberPersonalRows(members, chandas);
+  const aaya = rows.filter((r) => r.status === "Aaya").length;
+  const partial = rows.filter((r) => r.status === "Partial").length;
+  const pendingN = rows.filter((r) => r.status === "Pending").length;
+  const totRecv = rows.reduce((s, r) => s + r.received, 0);
+  const totPend = rows.reduce((s, r) => s + r.pending, 0);
+  const totProm = rows.reduce((s, r) => s + r.promised, 0);
+
+  const doc = new jsPDF({ orientation: "portrait" });
+  const pageH = doc.internal.pageSize.getHeight();
+  const left = 14;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Chanda list — members (personal)", left, 16);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, left, 22);
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Aaya ${aaya}  ·  Partial ${partial}  ·  Pending ${pendingN}`, left, 30);
+  doc.text(`Received ${formatRs(totRecv)}  ·  Pending ${formatRs(totPend)}`, left, 36);
+
+  const head = ["Member", ...rollupCols.map((c) => c.label)];
+  const body = rows.map((r) => [r.name, ...rollupCols.map((c) => rollupCell(r, c.key))]);
+  const totalRow = ["TOTAL", ...rollupCols.map((c) => {
+    if (c.key === "received") return formatRs(totRecv);
+    if (c.key === "pending") return formatRs(totPend);
+    if (c.key === "promised") return formatRs(totProm);
+    if (c.key === "entries") return String(rows.reduce((s, r) => s + r.count, 0));
+    if (c.key === "status") return "";
+    return "";
+  })];
+
+  autoTable(doc, {
+    startY: 42,
+    head: [head],
+    body: [...body, totalRow],
+    styles: { fontSize: 10, cellPadding: 2.2 },
+    headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+    footStyles: { fillColor: [241, 245, 249], textColor: 15, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left, right: 14 },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.row.index === body.length) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fillColor = [226, 232, 240];
+      }
+    },
+  });
+
+  if (entryCols.length) {
+    let y = doc.lastAutoTable.finalY + 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(13, 148, 136);
+    if (y > pageH - 28) {
+      doc.addPage();
+      y = 16;
+    }
+    doc.text("Personal chanda entries", left, y);
+    y += 4;
+    rows.filter((r) => r.entries.length).forEach((r) => {
+      if (y > pageH - 36) {
+        doc.addPage();
+        y = 16;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${r.name}  ·  ${formatRs(r.received)} received`, left, y + 6);
+      autoTable(doc, {
+        startY: y + 8,
+        head: [entryCols.map((c) => c.label)],
+        body: r.entries.map((c) => entryCols.map((col) => entryCell(c, col.key))),
+        styles: { fontSize: 8, cellPadding: 1.8 },
+        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+        margin: { left, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 6;
+    });
+  }
+
+  doc.save(`chanda-members-${dt()}.pdf`);
+};
+
+export const downloadMemberChandaListExcel = (members, chandas, selectedCols) => {
+  const cols = selectedColDefs(selectedCols);
+  const rollupCols = cols.filter((c) => c.kind === "rollup");
+  const entryCols = cols.filter((c) => c.kind === "entry");
+  const rows = buildMemberPersonalRows(members, chandas);
+  const totRecv = rows.reduce((s, r) => s + r.received, 0);
+  const totPend = rows.reduce((s, r) => s + r.pending, 0);
+  const totProm = rows.reduce((s, r) => s + r.promised, 0);
+  const totEntries = rows.reduce((s, r) => s + r.count, 0);
+
+  const numCell = (row, key) => {
+    if (key === "received") return row.received;
+    if (key === "pending") return row.pending;
+    if (key === "promised") return row.promised;
+    if (key === "entries") return row.count;
+    if (key === "status") return row.status;
+    return "";
+  };
+
+  const memberSheet = rows.map((r) => {
+    const o = { Member: r.name };
+    rollupCols.forEach((c) => { o[c.label] = numCell(r, c.key); });
+    return o;
+  });
+  const total = { Member: "TOTAL" };
+  rollupCols.forEach((c) => {
+    if (c.key === "received") total[c.label] = totRecv;
+    else if (c.key === "pending") total[c.label] = totPend;
+    else if (c.key === "promised") total[c.label] = totProm;
+    else if (c.key === "entries") total[c.label] = totEntries;
+    else total[c.label] = "";
+  });
+  memberSheet.push(total);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(memberSheet), "Members");
+
+  if (entryCols.length) {
+    const entrySheet = [];
+    rows.forEach((r) => {
+      r.entries.forEach((c) => {
+        const o = { Member: r.name };
+        entryCols.forEach((col) => {
+          if (col.key === "date") o[col.label] = c.date || "";
+          else o[col.label] = entryCell(c, col.key);
+        });
+        o.Promised = Number(c.amount || 0);
+        o.Received = chandaReceivedAmt(c);
+        o.Status = c.status || "";
+        entrySheet.push(o);
+      });
+    });
+    if (!entrySheet.length) entrySheet.push({ Member: "No personal chanda entries" });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(entrySheet), "Personal chanda");
+  }
+
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), `chanda-members-${dt()}.xlsx`);
 };
 
 export { collectionsForMember };

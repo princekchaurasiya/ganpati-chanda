@@ -4,7 +4,7 @@ import { memberApi, transferApi, ledgerApi, collectorApi, chandaApi } from "@/li
 import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
 import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, Check, X, RotateCcw, UserPlus, Plus, FileText, FileSpreadsheet, Scale } from "lucide-react";
 import { toast } from "sonner";
-import { downloadMembersPDF, downloadMembersExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, collectionsForMember } from "@/lib/exports";
+import { downloadMembersPDF, downloadMembersExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, collectionsForMember, downloadMemberChandaListPDF, downloadMemberChandaListExcel, MEMBER_CHANDA_LIST_COLS, MEMBER_CHANDA_LIST_DEFAULT_COLS } from "@/lib/exports";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import MemberEditSheet from "@/components/MemberEditSheet";
 
@@ -29,20 +29,24 @@ export default function Members() {
   const [newMemberName, setNewMemberName] = useState("");
   const [savingMember, setSavingMember] = useState(false);
   const [editSheet, setEditSheet] = useState(null); // { name, focus }
+  const [chandas, setChandas] = useState([]);
+  const [chandaListCols, setChandaListCols] = useState(MEMBER_CHANDA_LIST_DEFAULT_COLS);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [m, t, l, c] = await Promise.all([
+      const [m, t, l, c, ch] = await Promise.all([
         memberApi.summary(),
         transferApi.list(),
         ledgerApi.get(),
         collectorApi.list().catch(() => []),
+        chandaApi.list().catch(() => []),
       ]);
       setMembers(m.members || []);
       setTransfers(t || []);
       setLedger(l.entries || []);
       setCollectors(c || []);
+      setChandas(ch || []);
     } catch (err) {
       toast.error(err?.response?.data?.detail || err?.message || "Members load nahi hua");
     } finally {
@@ -217,6 +221,58 @@ export default function Members() {
           <div className="space-y-2.5">
             <div className="text-xs text-teal-800 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2">
               Galat collection / transfer / paid amount? Member ke <strong>Update</strong> pe tap karo — naam nahi, entries badlegi.
+            </div>
+            <div className="card-elevated p-4 space-y-3" data-testid="member-chanda-list-export">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Personal chanda list</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Member ka apna chanda aaya ya nahi. Columns tick karo — PDF/Excel usi hisab se banega. Collector/Date tick karoge to receipts bhi aayengi.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {MEMBER_CHANDA_LIST_COLS.map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={chandaListCols.includes(c.key)}
+                      onChange={() => setChandaListCols((prev) => (
+                        prev.includes(c.key) ? prev.filter((k) => k !== c.key) : [...prev, c.key]
+                      ))}
+                      data-testid={`chanda-list-col-${c.key}`}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-slate-700">{c.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      downloadMemberChandaListPDF(members, chandas, chandaListCols);
+                      toast.success("Chanda list PDF downloaded");
+                    } catch { toast.error("PDF export failed"); }
+                  }}
+                  data-testid="members-chanda-list-pdf-btn"
+                  className="h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-1.5 text-sm"
+                >
+                  <FileText size={16} /> Chanda list PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      downloadMemberChandaListExcel(members, chandas, chandaListCols);
+                      toast.success("Chanda list Excel downloaded");
+                    } catch { toast.error("Excel export failed"); }
+                  }}
+                  data-testid="members-chanda-list-excel-btn"
+                  className="h-11 rounded-xl bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 font-semibold flex items-center justify-center gap-1.5 text-sm"
+                >
+                  <FileSpreadsheet size={16} /> Chanda list Excel
+                </button>
+              </div>
             </div>
             {members.map((m) => {
               const col = collectorFor(m.name);
