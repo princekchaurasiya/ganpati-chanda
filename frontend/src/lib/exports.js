@@ -500,7 +500,7 @@ const signedRs = (n) => {
 };
 
 /** One member: huge NET HISAB plus/minus, then that person's entries. */
-export const downloadMemberHisabPDF = (name, detail) => {
+export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
   const s = detail?.summary || { name };
   const net = netOfMember(s);
   const kind = net < -0.01 ? "minus" : net > 0.01 ? "plus" : "settled";
@@ -529,18 +529,27 @@ export const downloadMemberHisabPDF = (name, detail) => {
   doc.setFontSize(9);
   doc.setTextColor(148, 163, 184);
   doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, left, 22);
+  const includeDonorPromises = !!opts.includeDonorPromises;
+  const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
+  doc.setFontSize(8);
+  doc.text(
+    includeDonorPromises ? `${eventFilter}  ·  Personal + donor promises` : `${eventFilter}  ·  Sirf personal chanda (promise nahi)`,
+    left,
+    26,
+  );
 
   doc.setFillColor(...bg);
-  doc.roundedRect(left, 28, width, 42, 3, 3, "F");
+  doc.roundedRect(left, 30, width, 42, 3, 3, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
-  doc.text("NET HISAB", left + 6, 36);
+  doc.text("NET HISAB", left + 6, 38);
   doc.setFontSize(10);
   doc.setTextColor(...fg);
-  doc.text(tag, left + 6, 43);
+  doc.text(tag, left + 6, 45);
   doc.setFontSize(32);
-  doc.text(signedRs(net), left + 6, 58);
+  doc.text(signedRs(net), left + 6, 60);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -551,9 +560,9 @@ export const downloadMemberHisabPDF = (name, detail) => {
     ...(Number(s.transferred_out || 0) > 0.01 ? [`-${formatRs(s.transferred_out)} out`] : []),
     ...(Number(s.paid_to_expenses || 0) > 0.01 ? [`-${formatRs(s.paid_to_expenses)} paid`] : []),
   ];
-  doc.text(doc.splitTextToSize(bits.join("  ·  "), width - 12)[0], left + 6, 66);
+  doc.text(doc.splitTextToSize(bits.join("  ·  "), width - 12)[0], left + 6, 68);
 
-  let startY = 76;
+  let startY = 80;
   const captionThenTable = (title, head, body) => {
     if (!body.length) return;
     const pageH = doc.internal.pageSize.getHeight();
@@ -576,6 +585,33 @@ export const downloadMemberHisabPDF = (name, detail) => {
     });
     startY = doc.lastAutoTable.finalY + 8;
   };
+
+  if (personal.length) {
+    captionThenTable(
+      `Personal chanda (${personal.length})${includeDonorPromises ? " + donor promises" : " — sirf personal"}`,
+      ["Date", "Slip", "Receipt", "Aaya", "Pending", "Collector", "Status"],
+      personal.map((c) => [
+        formatDate(c.date),
+        c.name || "-",
+        receiptLabel(c),
+        formatRs(chandaReceivedAmt(c)),
+        formatRs(entryPendingAmt(c)),
+        c.collector || "-",
+        c.status || "-",
+      ]),
+    );
+  } else {
+    const pageH = doc.internal.pageSize.getHeight();
+    if (startY + 12 > pageH - 16) {
+      doc.addPage();
+      startY = 16;
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Koi personal chanda nahi is filter pe.", left, startY);
+    startY += 10;
+  }
 
   captionThenTable(
     `Collections (${chandas.length})`,
@@ -621,7 +657,7 @@ export const downloadMemberHisabPDF = (name, detail) => {
     rIn.map((r) => [formatDate(r.date), r.paid_by || r.from_member || "-", formatRs(r.amount), r.note || ""]),
   );
 
-  if (!chandas.length && !tOut.length && !tIn.length && !expenses.length && !rOut.length && !rIn.length) {
+  if (!personal.length && !chandas.length && !tOut.length && !tIn.length && !expenses.length && !rOut.length && !rIn.length) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(100, 116, 139);
@@ -638,31 +674,69 @@ const collectionsForMember = (detail, allChandas, memberName) => {
   return (allChandas || []).filter((c) => !c.voided && (c.collector || "").toLowerCase().trim() === n);
 };
 
-export const downloadMemberChandaReportPDF = (name, chandas) => {
+export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
   const rows = activeRows(chandas);
   const collected = rows.filter((c) => c.status === "Collected").reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
   const pending = rows.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
   const promised = rows.reduce((s, c) => s + (c.amount || 0), 0);
+  const includeDonorPromises = !!opts.includeDonorPromises;
+  const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
+  const persRecv = personal.reduce((s, c) => s + chandaReceivedAmt(c), 0);
+  const persPend = personal.reduce((s, c) => s + entryPendingAmt(c), 0);
 
   const doc = new jsPDF();
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text(`Chanda report — ${name}`, 14, 16);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 22);
+  doc.text(
+    includeDonorPromises ? `${eventFilter}  ·  Personal + donor promises` : `${eventFilter}  ·  Sirf personal chanda (promise nahi)`,
+    14,
+    27,
+  );
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(11);
   [
-    `Entries: ${rows.length}`,
-    `Promised: ${formatRs(promised)}`,
-    `Collected: ${formatRs(collected)}`,
-    `Pending: ${formatRs(pending)}`,
-  ].forEach((line, i) => doc.text(line, 14, 32 + i * 6));
+    `Collector book: ${rows.length}  ·  Collected ${formatRs(collected)}  ·  Pending ${formatRs(pending)}`,
+    `Personal: ${personal.length}  ·  Aaya ${formatRs(persRecv)}  ·  Pending ${formatRs(persPend)}`,
+  ].forEach((line, i) => doc.text(line, 14, 35 + i * 6));
 
+  let startY = 48;
+  if (personal.length) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(13, 148, 136);
+    doc.text("Personal chanda", 14, startY);
+    autoTable(doc, {
+      startY: startY + 3,
+      head: [["Date", "Slip", "Receipt", "Aaya", "Pending", "Collector", "Status"]],
+      body: personal.map((c) => [
+        formatDate(c.date),
+        c.name || "-",
+        receiptLabel(c),
+        formatRs(chandaReceivedAmt(c)),
+        formatRs(entryPendingAmt(c)),
+        c.collector || "-",
+        c.status || "-",
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 },
+    });
+    startY = doc.lastAutoTable.finalY + 10;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(13, 148, 136);
+  doc.text("Collector book", 14, startY);
   autoTable(doc, {
-    startY: 58,
+    startY: startY + 3,
     head: [["Date", "Book", "Receipt", "Donor", "Amount", "Mode", "Status", "Event"]],
     body: rows.length ? rows.map((c) => [
       formatDate(c.date),
@@ -682,9 +756,23 @@ export const downloadMemberChandaReportPDF = (name, chandas) => {
   doc.save(`chanda-${fileSafeName(name)}-${dt()}.pdf`);
 };
 
-export const downloadMemberChandaReportExcel = (name, chandas) => {
+export const downloadMemberChandaReportExcel = (name, chandas, opts = {}) => {
   const rows = activeRows(chandas);
+  const includeDonorPromises = !!opts.includeDonorPromises;
+  const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
   const wb = XLSX.utils.book_new();
+  const personalData = personal.length ? personal.map((c) => ({
+    Date: c.date,
+    Slip: c.name || "",
+    Receipt: receiptLabel(c),
+    Aaya: chandaReceivedAmt(c),
+    Pending: entryPendingAmt(c),
+    Collector: c.collector || "",
+    Status: c.status || "",
+    Event: c.event || "",
+  })) : [{ Slip: "Koi personal chanda nahi is filter pe" }];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personalData), "Personal chanda");
   const data = rows.length ? rows.map((c) => ({
     Date: c.date,
     Book: c.receipt_book_name || "",
@@ -697,7 +785,7 @@ export const downloadMemberChandaReportExcel = (name, chandas) => {
     Status: c.status || "",
     Event: c.event || "",
   })) : [{ Date: "", Donor: "No collections" }];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Chanda");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Collector book");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   saveAs(new Blob([buf], { type: "application/octet-stream" }), `chanda-${fileSafeName(name)}-${dt()}.xlsx`);
 };
@@ -772,7 +860,7 @@ export const MEMBER_CHANDA_LIST_COLS = [
   { key: "received", label: "Aaya", kind: "rollup" },
   { key: "pending", label: "Pending", kind: "rollup" },
   { key: "status", label: "Status", kind: "rollup" },
-  { key: "promised", label: "Donor promise", kind: "rollup" },
+  { key: "promised", label: "Promised", kind: "rollup" },
   { key: "entries", label: "Entries", kind: "rollup" },
   { key: "collector", label: "Collector", kind: "entry" },
   { key: "date", label: "Date", kind: "entry" },
@@ -893,9 +981,8 @@ const entryCell = (c, key) => {
   return "";
 };
 
-export const downloadMemberChandaListPDF = (members, chandas, selectedCols, eventFilter = "All") => {
+export const downloadMemberChandaListPDF = (members, chandas, selectedCols, eventFilter = "All", includeDonorPromises = false) => {
   const cols = selectedColDefs(selectedCols);
-  const includeDonorPromises = (selectedCols || []).includes("promised");
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
   const rows = buildMemberPersonalRows(members, chandas, eventFilter, includeDonorPromises);
@@ -1024,9 +1111,8 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
   doc.save(`chanda-members-${dt()}.pdf`);
 };
 
-export const downloadMemberChandaListExcel = (members, chandas, selectedCols, eventFilter = "All") => {
+export const downloadMemberChandaListExcel = (members, chandas, selectedCols, eventFilter = "All", includeDonorPromises = false) => {
   const cols = selectedColDefs(selectedCols);
-  const includeDonorPromises = (selectedCols || []).includes("promised");
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
   const rows = buildMemberPersonalRows(members, chandas, eventFilter, includeDonorPromises);

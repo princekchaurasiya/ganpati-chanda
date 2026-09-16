@@ -6,7 +6,8 @@ import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, 
 import { toast } from "sonner";
 import { downloadMembersPDF, downloadMembersExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, collectionsForMember, downloadMemberChandaListPDF, downloadMemberChandaListExcel, MEMBER_CHANDA_LIST_COLS, MEMBER_CHANDA_LIST_DEFAULT_COLS } from "@/lib/exports";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { mergeEvents, DEFAULT_EVENT } from "@/lib/events";
+import { useChandaSlipFilters, loadChandaSlipFilters } from "@/lib/chandaFilters";
+import ChandaSlipFilters from "@/components/ChandaSlipFilters";
 
 const memberNet = (m) => {
   if (!m) return 0;
@@ -31,7 +32,8 @@ export default function Members() {
   const [editSheet, setEditSheet] = useState(null); // { name, focus }
   const [chandas, setChandas] = useState([]);
   const [chandaListCols, setChandaListCols] = useState(MEMBER_CHANDA_LIST_DEFAULT_COLS);
-  const [chandaListEvent, setChandaListEvent] = useState(DEFAULT_EVENT);
+  const usedEvents = useMemo(() => (chandas || []).map((c) => c.event).filter(Boolean), [chandas]);
+  const slipFilters = useChandaSlipFilters(usedEvents);
 
   const load = async () => {
     setLoading(true);
@@ -56,11 +58,6 @@ export default function Members() {
   };
   useEffect(() => { load(); }, []);
 
-  const chandaListEvents = useMemo(
-    () => mergeEvents((chandas || []).map((c) => c.event).filter(Boolean)),
-    [chandas],
-  );
-
   const collectorFor = (name) => collectors.find((c) => c.name === name);
 
   const exportMember = async (name, kind) => {
@@ -69,11 +66,13 @@ export default function Members() {
         memberApi.detail(name),
         chandaApi.list().catch(() => []),
       ]);
-      const chandas = collectionsForMember(detail, allChandas, name);
+      const collected = collectionsForMember(detail, allChandas, name);
       const expenses = detail?.expenses || [];
-      if (kind === "hisab-pdf") downloadMemberHisabPDF(name, detail);
-      else if (kind === "chanda-pdf") downloadMemberChandaReportPDF(name, chandas);
-      else if (kind === "chanda-excel") downloadMemberChandaReportExcel(name, chandas);
+      const filters = loadChandaSlipFilters();
+      const slipOpts = { allChandas, eventFilter: filters.eventFilter, includeDonorPromises: filters.includeDonorPromises };
+      if (kind === "hisab-pdf") downloadMemberHisabPDF(name, detail, slipOpts);
+      else if (kind === "chanda-pdf") downloadMemberChandaReportPDF(name, collected, slipOpts);
+      else if (kind === "chanda-excel") downloadMemberChandaReportExcel(name, collected, slipOpts);
       else if (kind === "expense-pdf") downloadMemberExpenseReportPDF(name, expenses);
       else downloadMemberExpenseReportExcel(name, expenses);
       const labels = {
@@ -232,25 +231,19 @@ export default function Members() {
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">Personal chanda list</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Default: member ka apna chanda jo aaya (jaise Manoj ₹5,000 GPay). Collector book ki donor promise (jaise Book 2 “Manoj chaurasiya” ₹501 pending) tabhi aati hai jab <span className="font-semibold text-slate-700">Donor promise</span> tick ho. PDF pe Aaya vs Pending alag dikhega, pending ho to slip name + receipt bhi.
+                  Default: member ka apna chanda jo aaya. Donor promise alag tick — same filter Hisab / Chanda PDF pe bhi lagti hai.
                 </p>
               </div>
-              <div>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Kaunsa chanda</div>
-                <div className="flex flex-wrap gap-1.5" data-testid="chanda-list-event-chips">
-                  <button type="button" onClick={() => setChandaListEvent("All")}
-                    data-testid="chanda-list-event-all"
-                    className={`chip ${chandaListEvent === "All" ? "chip-active" : ""}`}>All (mandap + dahi handi)</button>
-                  {chandaListEvents.map((ev) => (
-                    <button type="button" key={ev} onClick={() => setChandaListEvent(ev)}
-                      data-testid={`chanda-list-event-${ev.replace(/\s+/g, "-").toLowerCase()}`}
-                      className={`chip ${chandaListEvent === ev ? "chip-active" : ""}`}>{ev}</button>
-                  ))}
-                </div>
-              </div>
+              <ChandaSlipFilters
+                eventFilter={slipFilters.eventFilter}
+                includeDonorPromises={slipFilters.includeDonorPromises}
+                events={slipFilters.events}
+                onEventChange={slipFilters.setEventFilter}
+                onPromiseChange={slipFilters.setIncludeDonorPromises}
+              />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {MEMBER_CHANDA_LIST_COLS.map((c) => (
-                  <label key={c.key} className={`flex items-center gap-2 p-2 border rounded-xl cursor-pointer hover:bg-slate-50 ${c.key === "promised" ? "border-amber-300 bg-amber-50/70" : "border-slate-200"}`}>
+                  <label key={c.key} className="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={chandaListCols.includes(c.key)}
@@ -260,10 +253,7 @@ export default function Members() {
                       data-testid={`chanda-list-col-${c.key}`}
                       className="w-4 h-4"
                     />
-                    <span className="text-sm font-medium text-slate-700">
-                      {c.label}
-                      {c.key === "promised" ? <span className="block text-[10px] font-normal text-slate-500">Book ki pending promise</span> : null}
-                    </span>
+                    <span className="text-sm font-medium text-slate-700">{c.label}</span>
                   </label>
                 ))}
               </div>
@@ -272,7 +262,7 @@ export default function Members() {
                   type="button"
                   onClick={() => {
                     try {
-                      downloadMemberChandaListPDF(members, chandas, chandaListCols, chandaListEvent);
+                      downloadMemberChandaListPDF(members, chandas, chandaListCols, slipFilters.eventFilter, slipFilters.includeDonorPromises);
                       toast.success("Chanda list PDF downloaded");
                     } catch { toast.error("PDF export failed"); }
                   }}
@@ -285,7 +275,7 @@ export default function Members() {
                   type="button"
                   onClick={() => {
                     try {
-                      downloadMemberChandaListExcel(members, chandas, chandaListCols, chandaListEvent);
+                      downloadMemberChandaListExcel(members, chandas, chandaListCols, slipFilters.eventFilter, slipFilters.includeDonorPromises);
                       toast.success("Chanda list Excel downloaded");
                     } catch { toast.error("Excel export failed"); }
                   }}

@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { memberApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift, ChevronRight, X, FileText, FileSpreadsheet, FileDown, Scale } from "lucide-react";
 import { colorForEvent } from "@/lib/events";
 import MemberEditSheet from "@/components/MemberEditSheet";
-import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF } from "@/lib/exports";
+import ChandaSlipFilters from "@/components/ChandaSlipFilters";
+import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, personalChandasForMember } from "@/lib/exports";
+import { useChandaSlipFilters } from "@/lib/chandaFilters";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
@@ -20,24 +22,34 @@ export default function MemberDetail() {
   const nav = useNavigate();
   const location = useLocation();
   const [data, setData] = useState(null);
-  const [donations, setDonations] = useState([]);
+  const [allChandas, setAllChandas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalKind, setModalKind] = useState(null);
   const [showUpdate, setShowUpdate] = useState(false);
+  const decodedName = decodeURIComponent(name || "");
+  const usedEvents = useMemo(() => (allChandas || []).map((c) => c.event).filter(Boolean), [allChandas]);
+  const slipFilters = useChandaSlipFilters(usedEvents);
+  const donations = useMemo(
+    () => personalChandasForMember(allChandas, decodedName, slipFilters.eventFilter, slipFilters.includeDonorPromises),
+    [allChandas, decodedName, slipFilters.eventFilter, slipFilters.includeDonorPromises],
+  );
+  const anyPersonal = useMemo(
+    () => personalChandasForMember(allChandas, decodedName, "All", true).length > 0,
+    [allChandas, decodedName],
+  );
+  const slipOpts = {
+    allChandas,
+    eventFilter: slipFilters.eventFilter,
+    includeDonorPromises: slipFilters.includeDonorPromises,
+  };
 
   const loadDetail = () => {
     Promise.all([
       memberApi.detail(name).catch(() => null),
       chandaApi.list().catch(() => []),
-    ]).then(([detail, allChandas]) => {
+    ]).then(([detail, chandas]) => {
       setData(detail);
-      const decoded = decodeURIComponent(name).toLowerCase().trim();
-      setDonations((allChandas || []).filter((c) => {
-        if (c.voided) return false;
-        if ((c.donor_member || "").toLowerCase().trim() === decoded) return true;
-        if ((c.name || "").toLowerCase().trim() === decoded && !c.donor_member) return true;
-        return false;
-      }));
+      setAllChandas(chandas || []);
     }).finally(() => setLoading(false));
   };
 
@@ -60,7 +72,7 @@ export default function MemberDetail() {
   if (loading) return <div className="pt-10 text-center text-slate-500">Loading…</div>;
 
   // Neither collector activity nor donor activity
-  if (!data && donations.length === 0) {
+  if (!data && !anyPersonal) {
     return (
       <div className="space-y-4 pb-24" data-testid="member-detail-page">
         <div className="flex items-center gap-2">
@@ -76,7 +88,7 @@ export default function MemberDetail() {
 
   const s = data ? data.summary : null;
   const isPureDonor = !s || (s.count_collections === 0 && s.transferred_out === 0 && s.transferred_in === 0 && s.paid_to_expenses === 0 && s.reimbursement_paid_out === 0 && s.reimbursement_received === 0);
-  const donationTotal = donations.reduce((sum, d) => sum + (d.received_amount || d.amount || 0), 0);
+  const donationTotal = donations.reduce((sum, d) => sum + Number(d.received_amount != null ? d.received_amount : (d.status === "Collected" ? d.amount : 0) || 0), 0);
 
   return (
     <div className="space-y-4 pb-24" data-testid="member-detail-page">
@@ -91,7 +103,7 @@ export default function MemberDetail() {
             title="Is member ka plus/minus hisab + entries"
             onClick={() => {
               try {
-                downloadMemberHisabPDF(decodeURIComponent(name), data);
+                downloadMemberHisabPDF(decodedName, data, slipOpts);
                 toast.success("Hisab PDF downloaded");
               } catch { toast.error("Export failed"); }
             }}
@@ -126,7 +138,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberChandaReportPDF(decodeURIComponent(name), data?.chandas || []);
+                    downloadMemberChandaReportPDF(decodedName, data?.chandas || [], slipOpts);
                     toast.success("Chanda report PDF downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -137,7 +149,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberChandaReportExcel(decodeURIComponent(name), data?.chandas || []);
+                    downloadMemberChandaReportExcel(decodedName, data?.chandas || [], slipOpts);
                     toast.success("Chanda report Excel downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -183,8 +195,20 @@ export default function MemberDetail() {
         <Pencil size={13} className="shrink-0" /> Galat entry? Kisi bhi row ke pencil icon pe tap karke saare fields (amount, mode, date, etc.) edit karo.
       </div>
 
+      <div className="card-elevated p-4 space-y-2" data-testid="member-slip-filters-card">
+        <div className="text-sm font-semibold text-slate-900">Personal chanda filter</div>
+        <p className="text-xs text-slate-500">Hisab / Chanda PDF aur Donations Given isi filter se. Donor promise default band.</p>
+        <ChandaSlipFilters
+          eventFilter={slipFilters.eventFilter}
+          includeDonorPromises={slipFilters.includeDonorPromises}
+          events={slipFilters.events}
+          onEventChange={slipFilters.setEventFilter}
+          onPromiseChange={slipFilters.setIncludeDonorPromises}
+        />
+      </div>
+
       {/* Donations GIVEN by this person (donor role) */}
-      {donations.length > 0 && (
+      {(donations.length > 0 || anyPersonal) && (
         <section className="card-elevated p-4 bg-amber-50/40 border border-amber-100" data-testid="member-donations-given-section">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -194,8 +218,11 @@ export default function MemberDetail() {
             <div className="font-num font-bold text-amber-700">{formatINR(donationTotal)}</div>
           </div>
           <div className="text-[11px] text-amber-800 mb-2">
-            {name} ne khud diye — ye paisa collector ke naam par count hota hai.
+            {decodedName} ne khud diye — ye paisa collector ke naam par count hota hai.
           </div>
+          {donations.length === 0 ? (
+            <div className="text-sm text-slate-500 py-2">Is filter pe koi personal chanda nahi. Donor promise tick karke pending book slips dekho.</div>
+          ) : (
           <div className="divide-y divide-amber-100/70">
             {donations.map((c) => (
               <div key={c.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-donation-given-${c.id}`}>
@@ -226,6 +253,7 @@ export default function MemberDetail() {
               </div>
             ))}
           </div>
+          )}
           {isPureDonor && (
             <div className="mt-2 text-[11px] text-slate-500 italic">
               Note: {name} sirf donor hai — koi chanda collect nahi kiya, isliye niche member stats sab zero hain.
