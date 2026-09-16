@@ -9,6 +9,50 @@ import { formatDate, formatDateTimeIST } from "@/lib/format";
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const dt = () => new Date().toISOString().slice(0, 10);
 
+/** Incoming money green, outgoing red, pending (not yet in) amber. */
+export const PDF_TONE = {
+  in: [4, 120, 87],
+  out: [185, 28, 28],
+  pending: [180, 83, 9],
+};
+
+export const pdfHeadStyles = (tone = "in") => ({
+  fillColor: PDF_TONE[tone] || PDF_TONE.in,
+  textColor: 255,
+  fontStyle: "bold",
+});
+
+const paintRupee = (cell, tone) => {
+  cell.styles.textColor = PDF_TONE[tone];
+  cell.styles.fontStyle = "bold";
+};
+
+const pdfRupeeParser = (tone, rupeeCols) => (data) => {
+  if (data.section !== "body") return;
+  if (rupeeCols.includes(data.column.index)) paintRupee(data.cell, tone);
+};
+
+export const pdfInPendingParser = (amountIdx, statusIdx) => (data) => {
+  if (data.section !== "body") return;
+  const status = String((data.row.raw && data.row.raw[statusIdx]) || "").toLowerCase();
+  const pending = status === "pending";
+  if (data.column.index === amountIdx) paintRupee(data.cell, pending ? "pending" : "in");
+  if (statusIdx != null && data.column.index === statusIdx && pending) paintRupee(data.cell, "pending");
+};
+
+const pdfAayaPendingParser = (aayaIdx, pendingIdx) => (data) => {
+  if (data.section !== "body") return;
+  if (data.column.index === aayaIdx) paintRupee(data.cell, "in");
+  if (data.column.index === pendingIdx) paintRupee(data.cell, "pending");
+};
+
+const pdfSectionTitle = (doc, title, x, y, tone = "in") => {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...(PDF_TONE[tone] || PDF_TONE.in));
+  doc.text(title, x, y);
+};
+
 // ---------- EXPENSES ----------
 const EXP_COLS = [
   { key: "date", label: "Date" },
@@ -86,14 +130,17 @@ export const exportExpensesPDF = (entries, _byCategory, opts = {}) => {
     `Total bill:     ${formatRs(totalBill)}`,
     ...(bakaya > 0.01 ? [`Bakaya:         ${formatRs(bakaya)}`] : []),
   ];
-  summary.forEach((s, i) => doc.text(s, left, 34 + i * 7));
+  summary.forEach((s, i) => {
+    doc.setTextColor(...(s.startsWith("Total paid") || s.startsWith("Bakaya") ? PDF_TONE.out : [15, 23, 42]));
+    doc.text(s, left, 34 + i * 7);
+  });
   let y = 34 + summary.length * 7 + 8;
 
   const writeSection = (heading, groups, head, rowFn) => {
     y = ensureY(y, 28);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.setTextColor(13, 148, 136);
+    doc.setTextColor(...PDF_TONE.out);
     doc.text(heading, left, y);
     y += 8;
     if (!groups.length) {
@@ -111,7 +158,9 @@ export const exportExpensesPDF = (entries, _byCategory, opts = {}) => {
       doc.setTextColor(15, 23, 42);
       const nameLines = doc.splitTextToSize(g.key, pageW - 90);
       doc.text(nameLines, left, y);
+      doc.setTextColor(...PDF_TONE.out);
       doc.text(formatRs(g.total), right, y, { align: "right" });
+      doc.setTextColor(15, 23, 42);
       y += nameLines.length * 5 + 1;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
@@ -123,9 +172,10 @@ export const exportExpensesPDF = (entries, _byCategory, opts = {}) => {
         head: [head],
         body: g.entries.map(rowFn),
         styles: { fontSize: 8, cellPadding: 1.8 },
-        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+        headStyles: pdfHeadStyles("out"),
         alternateRowStyles: { fillColor: [248, 250, 252] },
         margin: { left, right: 14 },
+        didParseCell: pdfRupeeParser("out", [head.length - 1]),
       });
       y = doc.lastAutoTable.finalY + 8;
     });
@@ -245,8 +295,20 @@ export const downloadMembersPDF = (members, ledger) => {
       MEM_COLS.map((c) => (c.key === "name" ? m.name : c.key === "count_collections" ? String(m.count_collections || 0) : formatRs(m[c.key] || 0)))
     ),
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [22, 163, 149] },
+    headStyles: pdfHeadStyles("in"),
     margin: { left: 14, right: 14 },
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      const key = MEM_COLS[data.column.index]?.key;
+      if (key === "total_received" || key === "transferred_in" || key === "current_held") paintRupee(data.cell, "in");
+      if (key === "transferred_out" || key === "paid_to_expenses" || key === "personal_contribution" || key === "reimbursement_due") paintRupee(data.cell, "out");
+      if (key === "net_position") {
+        const raw = members[data.row.index];
+        const net = netOfMember(raw);
+        paintRupee(data.cell, net < -0.01 ? "out" : net > 0.01 ? "in" : "in");
+        if (Math.abs(net) <= 0.01) data.cell.styles.textColor = [71, 85, 105];
+      }
+    },
   });
 
   let y = doc.lastAutoTable.finalY + 6;
@@ -266,8 +328,14 @@ export const downloadMembersPDF = (members, ledger) => {
       e.note || e.description || "",
     ]),
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [22, 163, 149] },
+    headStyles: pdfHeadStyles("in"),
     margin: { left: 14, right: 14 },
+    didParseCell: (data) => {
+      if (data.section !== "body" || data.column.index !== 4) return;
+      const type = String((data.row.raw && data.row.raw[1]) || "").toLowerCase();
+      if (type === "chanda") paintRupee(data.cell, "in");
+      else if (type === "expense" || type === "reimbursement") paintRupee(data.cell, "out");
+    },
   });
 
   doc.save(`members-ledger-${dt()}.pdf`);
@@ -563,25 +631,26 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
   doc.text(doc.splitTextToSize(bits.join("  ·  "), width - 12)[0], left + 6, 68);
 
   let startY = 80;
-  const captionThenTable = (title, head, body) => {
+  const captionThenTable = (title, head, body, tone, rupeeCols = [], extraParse) => {
     if (!body.length) return;
     const pageH = doc.internal.pageSize.getHeight();
     if (startY + 18 > pageH - 16) {
       doc.addPage();
       startY = 16;
     }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text(title, left, startY);
+    pdfSectionTitle(doc, title, left, startY, tone);
     autoTable(doc, {
       startY: startY + 3,
       head: [head],
       body,
       styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
-      headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+      headStyles: pdfHeadStyles(tone),
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        pdfRupeeParser(tone, rupeeCols)(data);
+        if (extraParse) extraParse(data);
+      },
     });
     startY = doc.lastAutoTable.finalY + 8;
   };
@@ -599,6 +668,9 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
         c.collector || "-",
         c.status || "-",
       ]),
+      "in",
+      [],
+      pdfAayaPendingParser(3, 4),
     );
   } else {
     const pageH = doc.internal.pageSize.getHeight();
@@ -620,20 +692,27 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
       formatDate(c.date),
       c.name || "-",
       c.receipt_no != null ? `${c.receipt_book_name || ""} #${c.receipt_no}`.trim() : "-",
-      formatRs(c.status === "Collected" ? (c.received_amount || c.amount) : c.amount),
+      formatRs(c.status === "Collected" ? chandaReceivedAmt(c) : (c.amount || 0)),
       c.payment_mode || "-",
       c.status || "-",
     ]),
+    "in",
+    [],
+    pdfInPendingParser(3, 5),
   );
   captionThenTable(
     `Transferred out (${tOut.length})`,
     ["Date", "To", "Amount", "Note"],
     tOut.map((t) => [formatDate(t.date), t.to_member || "-", formatRs(t.amount), t.note || ""]),
+    "out",
+    [2],
   );
   captionThenTable(
     `Received from others (${tIn.length})`,
     ["Date", "From", "Amount", "Note"],
     tIn.map((t) => [formatDate(t.date), t.from_member || "-", formatRs(t.amount), t.note || ""]),
+    "in",
+    [2],
   );
   captionThenTable(
     `Expenses (${expenses.length})`,
@@ -645,16 +724,22 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
       formatRs(e.amount_paid),
       e.payment_mode || "-",
     ]),
+    "out",
+    [3],
   );
   captionThenTable(
     `Reimbursements paid out (${rOut.length})`,
     ["Date", "To", "Amount", "Note"],
     rOut.map((r) => [formatDate(r.date), r.to_member || "-", formatRs(r.amount), r.note || ""]),
+    "out",
+    [2],
   );
   captionThenTable(
     `Reimbursements received (${rIn.length})`,
     ["Date", "From", "Amount", "Note"],
     rIn.map((r) => [formatDate(r.date), r.paid_by || r.from_member || "-", formatRs(r.amount), r.note || ""]),
+    "in",
+    [2],
   );
 
   if (!personal.length && !chandas.length && !tOut.length && !tIn.length && !expenses.length && !rOut.length && !rIn.length) {
@@ -699,18 +784,18 @@ export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
     27,
   );
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(11);
-  [
-    `Collector book: ${rows.length}  ·  Collected ${formatRs(collected)}  ·  Pending ${formatRs(pending)}`,
-    `Personal: ${personal.length}  ·  Aaya ${formatRs(persRecv)}  ·  Pending ${formatRs(persPend)}`,
-  ].forEach((line, i) => doc.text(line, 14, 35 + i * 6));
-
-  let startY = 48;
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_TONE.in);
+    [
+      `Collector book: ${rows.length}  ·  Collected ${formatRs(collected)}`,
+      `Personal: ${personal.length}  ·  Aaya ${formatRs(persRecv)}`,
+    ].forEach((line, i) => doc.text(line, 14, 35 + i * 6));
+    doc.setTextColor(...PDF_TONE.pending);
+    doc.setFontSize(10);
+    doc.text(`Pending (book) ${formatRs(pending)}  ·  Pending (personal) ${formatRs(persPend)}`, 14, 47);
+    let startY = 54;
   if (personal.length) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(13, 148, 136);
-    doc.text("Personal chanda", 14, startY);
+    pdfSectionTitle(doc, "Personal chanda", 14, startY, "in");
     autoTable(doc, {
       startY: startY + 3,
       head: [["Date", "Slip", "Receipt", "Aaya", "Pending", "Collector", "Status"]],
@@ -724,17 +809,15 @@ export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
         c.status || "-",
       ]),
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+      headStyles: pdfHeadStyles("in"),
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
+      didParseCell: pdfAayaPendingParser(3, 4),
     });
     startY = doc.lastAutoTable.finalY + 10;
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(13, 148, 136);
-  doc.text("Collector book", 14, startY);
+  pdfSectionTitle(doc, "Collector book", 14, startY, "in");
   autoTable(doc, {
     startY: startY + 3,
     head: [["Date", "Book", "Receipt", "Donor", "Amount", "Mode", "Status", "Event"]],
@@ -743,15 +826,16 @@ export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
       c.receipt_book_name || "-",
       c.receipt_no != null ? String(c.receipt_no) : "-",
       c.name || "-",
-      formatRs(c.status === "Collected" ? (c.received_amount || c.amount) : c.amount),
+      formatRs(c.status === "Collected" ? chandaReceivedAmt(c) : (c.amount || 0)),
       c.payment_mode || "-",
       c.status || "-",
       c.event || "-",
     ]) : [["-", "-", "-", "No collections", "-", "-", "-", "-"]],
     styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+    headStyles: pdfHeadStyles("in"),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: 14, right: 14 },
+    didParseCell: pdfInPendingParser(4, 6),
   });
   doc.save(`chanda-${fileSafeName(name)}-${dt()}.pdf`);
 };
@@ -804,7 +888,7 @@ export const downloadMemberExpenseReportPDF = (name, expenses) => {
   doc.setFontSize(10);
   doc.setTextColor(100);
   doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 22);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(...PDF_TONE.out);
   doc.setFontSize(11);
   const summary = [
     `Entries: ${rows.length}`,
@@ -828,9 +912,10 @@ export const downloadMemberExpenseReportPDF = (name, expenses) => {
       e.note || "",
     ]) : [["-", "No expenses", "-", "-", "-", "-", "-", "-"]],
     styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+    headStyles: pdfHeadStyles("out"),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: 14, right: 14 },
+    didParseCell: pdfRupeeParser("out", [5]),
   });
   doc.save(`expense-${fileSafeName(name)}-${dt()}.pdf`);
 };
@@ -1012,9 +1097,13 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
   doc.text(`Generated: ${new Date().toLocaleString("en-IN")}  ·  ${scope}`, left, 22);
   doc.text(mode, left, 27);
   doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(...PDF_TONE.in);
   doc.text(`Aaya ${aaya}  ·  Partial ${partial}  ·  Pending ${pendingN}`, left, 35);
-  doc.text(`Aaya ${formatRs(totRecv)}  ·  Pending ${formatRs(totPend)}`, left, 41);
+  doc.setTextColor(...PDF_TONE.in);
+  doc.text(`Aaya ${formatRs(totRecv)}`, left, 41);
+  const aayaW = doc.getTextWidth(`Aaya ${formatRs(totRecv)}  ·  `);
+  doc.setTextColor(...PDF_TONE.pending);
+  doc.text(`Pending ${formatRs(totPend)}`, left + aayaW, 41);
 
   const head = ["Member", ...rollupCols.map((c) => c.label)];
   const body = rows.map((r) => [r.name, ...rollupCols.map((c) => rollupCell(r, c.key))]);
@@ -1032,15 +1121,19 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
     head: [head],
     body: [...body, totalRow],
     styles: { fontSize: 10, cellPadding: 2.2 },
-    headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+    headStyles: pdfHeadStyles("in"),
     footStyles: { fillColor: [241, 245, 249], textColor: 15, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left, right: 14 },
     didParseCell: (data) => {
-      if (data.section === "body" && data.row.index === body.length) {
+      if (data.section !== "body") return;
+      if (data.row.index === body.length) {
         data.cell.styles.fontStyle = "bold";
         data.cell.styles.fillColor = [226, 232, 240];
       }
+      const colKey = data.column.index === 0 ? null : rollupCols[data.column.index - 1]?.key;
+      if (colKey === "received") paintRupee(data.cell, "in");
+      if (colKey === "pending") paintRupee(data.cell, "pending");
     },
   });
 
@@ -1053,10 +1146,7 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
   };
 
   ensureY(22);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(13, 148, 136);
-  doc.text("Pending kahan se — personal slips", left, y);
+  pdfSectionTitle(doc, "Pending kahan se — personal slips", left, y, "pending");
   y += 6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -1077,18 +1167,16 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
         formatDate(s.c.date),
       ]),
       styles: { fontSize: 8, cellPadding: 1.8 },
-      headStyles: { fillColor: [180, 83, 9], textColor: 255, fontStyle: "bold" },
+      headStyles: pdfHeadStyles("pending"),
       margin: { left, right: 14 },
+      didParseCell: pdfRupeeParser("pending", [2]),
     });
     y = doc.lastAutoTable.finalY + 8;
   }
 
   if (entryCols.length) {
     ensureY(20);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(13, 148, 136);
-    doc.text("Personal chanda entries", left, y);
+    pdfSectionTitle(doc, "Personal chanda entries", left, y, "in");
     y += 4;
     rows.filter((r) => r.entries.length).forEach((r) => {
       ensureY(36);
@@ -1101,7 +1189,7 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
         head: [entryCols.map((c) => c.label)],
         body: r.entries.map((c) => entryCols.map((col) => entryCell(c, col.key))),
         styles: { fontSize: 8, cellPadding: 1.8 },
-        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+        headStyles: pdfHeadStyles("in"),
         margin: { left, right: 14 },
       });
       y = doc.lastAutoTable.finalY + 6;

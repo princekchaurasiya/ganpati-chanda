@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { chandaApi, collectorApi, memberApi, expenseApi } from "@/lib/api";
 import { formatINR, formatDate } from "@/lib/format";
 import { FileText, FileSpreadsheet, FileDown, Share2, Scale, Receipt } from "lucide-react";
-import { downloadMembersHisabPDF, downloadExpensesPDF, downloadExpensesExcel } from "@/lib/exports";
+import { downloadMembersHisabPDF, downloadExpensesPDF, downloadExpensesExcel, pdfHeadStyles, PDF_TONE } from "@/lib/exports";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -85,7 +85,7 @@ export default function Reports() {
     return e[k] || "";
   };
   const cellValuePDF = (e, k) => {
-    if (k === "amount") return formatRs(e.amount);
+    if (k === "amount") return formatRs(e.status === "Collected" ? (e.received_amount != null ? e.received_amount : e.amount) : e.amount);
     if (k === "date") return formatDate(e.date);
     if (k === "receipt_book_name") return e.receipt_book_name || "-";
     if (k === "receipt_no") return e.receipt_no != null ? String(e.receipt_no) : "-";
@@ -106,26 +106,43 @@ export default function Reports() {
     doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 22);
 
     doc.setFontSize(11);
-    doc.setTextColor(0);
     const summary = [
-      `Total Entries: ${totals.count}`,
-      `Total Amount: ${formatRs(totals.total)}`,
-      `Collected:    ${formatRs(totals.collected)}`,
-      `Pending:      ${formatRs(totals.pending)}`,
+      [`Total Entries: ${totals.count}`, [15, 23, 42]],
+      [`Total Amount: ${formatRs(totals.total)}`, [15, 23, 42]],
+      [`Collected:    ${formatRs(totals.collected)}`, PDF_TONE.in],
+      [`Pending:      ${formatRs(totals.pending)}`, PDF_TONE.pending],
     ];
-    summary.forEach((s, i) => doc.text(s, 14, 32 + i * 6));
+    summary.forEach((s, i) => {
+      doc.setTextColor(...s[1]);
+      doc.text(s[0], 14, 32 + i * 6);
+    });
 
+    const amountIdx = activeCols.findIndex((c) => c.key === "amount");
+    const statusIdx = activeCols.findIndex((c) => c.key === "status");
     autoTable(doc, {
       startY: 62,
       head: [activeCols.map((c) => c.label)],
       body: filtered.map((e) => activeCols.map((c) => cellValuePDF(e, c.key))),
       styles: { font: "helvetica", fontSize: 10, cellPadding: 3, textColor: [15, 23, 42] },
-      headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
+      headStyles: pdfHeadStyles("in"),
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: activeCols.reduce((acc, c, i) => {
         if (c.key === "amount") acc[i] = { halign: "right", fontStyle: "bold" };
         return acc;
       }, {}),
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const e = filtered[data.row.index];
+        const pending = e?.status === "Pending";
+        if (amountIdx >= 0 && data.column.index === amountIdx) {
+          data.cell.styles.textColor = pending ? PDF_TONE.pending : PDF_TONE.in;
+          data.cell.styles.fontStyle = "bold";
+        }
+        if (statusIdx >= 0 && data.column.index === statusIdx && pending) {
+          data.cell.styles.textColor = PDF_TONE.pending;
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
     return doc;
   };
