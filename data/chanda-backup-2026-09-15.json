@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "exported_at": "2026-09-16T11:06:47.541033+00:00",
+  "exported_at": "2026-09-16T11:42:42.475784+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -1026,7 +1026,7 @@
       "receipt_no": null,
       "received_amount": 5000,
       "status": "Collected",
-      "updated_at": "2026-09-15T18:15:07.951075+00:00",
+      "updated_at": "2026-09-16T11:41:41.693335+00:00",
       "voided": true
     },
     {
@@ -1578,14 +1578,14 @@
       "event": "Ganpati Mandap",
       "mobile": null,
       "name": "Ram Kishan prajapati",
-      "note": null,
+      "note": "aka Neeraj Grill Works. Duplicate GPay slip (no receipt) voided — Book 4/178 yahi 2500 hai.",
       "payment_mode": "UPI",
       "receipt_book_id": "33b3c719-2485-4983-be07-215a55f2f886",
       "receipt_book_name": "Book 4",
       "receipt_no": 178,
       "received_amount": 2500,
       "status": "Collected",
-      "updated_at": "2026-09-12T14:12:15.508409+00:00",
+      "updated_at": "2026-09-16T11:30:14.010567+00:00",
       "voided": false
     },
     {
@@ -1795,8 +1795,8 @@
       "receipt_no": null,
       "received_amount": 2500.0,
       "status": "Collected",
-      "updated_at": "2026-09-16T10:54:38.065382+00:00",
-      "voided": false
+      "updated_at": "2026-09-16T11:30:14.006094+00:00",
+      "voided": true
     },
     {
       "id": "3883347e-5386-4cd8-8617-9d6782486350",
