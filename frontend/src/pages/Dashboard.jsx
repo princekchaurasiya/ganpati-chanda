@@ -83,6 +83,7 @@ export default function Dashboard() {
   const ex = stats.expenses;
   const mp = stats.money_position;
   const members = stats.members || [];
+  const openMembers = members.filter((m) => Math.abs(memberNet(m)) > 0.01);
   const recent = chandas.filter((x) => !x.voided).slice(0, 5);
   const receivedPct = ch.total_promised > 0 ? Math.round((ch.total_received / ch.total_promised) * 100) : 0;
   const paidPct = ex.total_bill > 0 ? Math.round((ex.total_paid / ex.total_bill) * 100) : 0;
@@ -174,6 +175,10 @@ export default function Dashboard() {
         </div>
         {members.length === 0 ? (
           <div className="text-sm text-slate-500">No member activity yet.</div>
+        ) : openMembers.length === 0 ? (
+          <div className="text-sm text-slate-500" data-testid="members-all-settled">
+            Sabka net ₹0 — settled members yahan nahi dikhte. Poori list <Link to="/members" className="text-teal-700 font-medium">Members</Link> pe hai.
+          </div>
         ) : (
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-xs sm:text-sm" data-testid="members-table">
@@ -187,7 +192,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {openMembers.map((m) => (
                   <tr key={m.name} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer active:bg-slate-100" data-testid={`member-row-${m.name}`} onClick={() => setModalKind(`member:${m.name}`)}>
                     <td className="py-2 pr-2">
                       <span className="font-medium text-slate-900">{m.name}</span>
