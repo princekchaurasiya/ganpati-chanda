@@ -89,6 +89,12 @@ export default function MemberDetail() {
   const s = data ? data.summary : null;
   const isPureDonor = !s || (s.count_collections === 0 && s.transferred_out === 0 && s.transferred_in === 0 && s.paid_to_expenses === 0 && s.reimbursement_paid_out === 0 && s.reimbursement_received === 0);
   const donationTotal = donations.reduce((sum, d) => sum + Number(d.received_amount != null ? d.received_amount : (d.status === "Collected" ? d.amount : 0) || 0), 0);
+  const liveChandas = (data?.chandas || []).filter((c) => !c.voided);
+  const liveTrfOut = (data?.transfers_out || []).filter((t) => !t.voided);
+  const liveTrfIn = (data?.transfers_in || []).filter((t) => !t.voided);
+  const liveExpenses = (data?.expenses || []).filter((e) => !e.voided);
+  const liveReimbIn = (data?.reimbursements_in || []).filter((r) => !r.voided);
+  const liveReimbOut = (data?.reimbursements_out || []).filter((r) => !r.voided);
 
   return (
     <div className="space-y-4 pb-24" data-testid="member-detail-page">
@@ -103,7 +109,15 @@ export default function MemberDetail() {
             title="Is member ka plus/minus hisab + entries"
             onClick={() => {
               try {
-                downloadMemberHisabPDF(decodedName, data, slipOpts);
+                downloadMemberHisabPDF(decodedName, {
+                  ...data,
+                  chandas: liveChandas,
+                  expenses: liveExpenses,
+                  transfers_out: liveTrfOut,
+                  transfers_in: liveTrfIn,
+                  reimbursements_out: liveReimbOut,
+                  reimbursements_in: liveReimbIn,
+                }, slipOpts);
                 toast.success("Hisab PDF downloaded");
               } catch { toast.error("Export failed"); }
             }}
@@ -138,7 +152,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberChandaReportPDF(decodedName, data?.chandas || [], slipOpts);
+                    downloadMemberChandaReportPDF(decodedName, liveChandas, slipOpts);
                     toast.success("Chanda report PDF downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -149,7 +163,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberChandaReportExcel(decodedName, data?.chandas || [], slipOpts);
+                    downloadMemberChandaReportExcel(decodedName, liveChandas, slipOpts);
                     toast.success("Chanda report Excel downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -160,7 +174,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberExpenseReportPDF(decodeURIComponent(name), data?.expenses || []);
+                    downloadMemberExpenseReportPDF(decodedName, liveExpenses);
                     toast.success("Expense report PDF downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -171,7 +185,7 @@ export default function MemberDetail() {
               <DropdownMenuItem
                 onClick={() => {
                   try {
-                    downloadMemberExpenseReportExcel(decodeURIComponent(name), data?.expenses || []);
+                    downloadMemberExpenseReportExcel(decodedName, liveExpenses);
                     toast.success("Expense report Excel downloaded");
                   } catch { toast.error("Export failed"); }
                 }}
@@ -322,14 +336,14 @@ export default function MemberDetail() {
       )}
 
       {/* Chanda collections */}
-      {data && data.chandas.length > 0 && (
+      {liveChandas.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-chandas-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-emerald-700" />
-            <h2 className="font-semibold text-slate-900">Collections ({data.chandas.length})</h2>
+            <h2 className="font-semibold text-slate-900">Collections ({liveChandas.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.chandas.map((c) => (
+            {liveChandas.map((c) => (
               <div key={c.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-chanda-row-${c.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate flex items-center gap-1 ${c.voided ? "line-through" : ""}`}>
@@ -362,14 +376,14 @@ export default function MemberDetail() {
       )}
 
       {/* Transfers out */}
-      {data && data.transfers_out.length > 0 && (
+      {liveTrfOut.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-transfers-out-section">
           <div className="flex items-center gap-2 mb-2">
             <ArrowRightLeft size={16} className="text-orange-700" />
-            <h2 className="font-semibold text-slate-900">Transferred Out ({data.transfers_out.length})</h2>
+            <h2 className="font-semibold text-slate-900">Transferred Out ({liveTrfOut.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.transfers_out.map((t) => (
+            {liveTrfOut.map((t) => (
               <div key={t.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-trf-out-row-${t.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate ${t.voided ? "line-through" : ""}`}>→ {t.to_member}</div>
@@ -393,14 +407,14 @@ export default function MemberDetail() {
       )}
 
       {/* Transfers in */}
-      {data && data.transfers_in.length > 0 && (
+      {liveTrfIn.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-transfers-in-section">
           <div className="flex items-center gap-2 mb-2">
             <ArrowRightLeft size={16} className="text-blue-700" />
-            <h2 className="font-semibold text-slate-900">Received From Others ({data.transfers_in.length})</h2>
+            <h2 className="font-semibold text-slate-900">Received From Others ({liveTrfIn.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.transfers_in.map((t) => (
+            {liveTrfIn.map((t) => (
               <div key={t.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-trf-in-row-${t.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate ${t.voided ? "line-through" : ""}`}>← {t.from_member}</div>
@@ -424,14 +438,14 @@ export default function MemberDetail() {
       )}
 
       {/* Expenses paid */}
-      {data && data.expenses.length > 0 && (
+      {liveExpenses.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-expenses-section">
           <div className="flex items-center gap-2 mb-2">
             <Receipt size={16} className="text-red-700" />
-            <h2 className="font-semibold text-slate-900">Expenses Paid ({data.expenses.length})</h2>
+            <h2 className="font-semibold text-slate-900">Expenses Paid ({liveExpenses.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.expenses.map((e) => (
+            {liveExpenses.map((e) => (
               <div key={e.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-exp-row-${e.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate flex items-center gap-1 ${e.voided ? "line-through" : ""}`}>
@@ -460,14 +474,14 @@ export default function MemberDetail() {
         </section>
       )}
       {/* Reimbursements received */}
-      {data && data.reimbursements_in && data.reimbursements_in.length > 0 && (
+      {liveReimbIn.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-reimb-in-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-emerald-700" />
-            <h2 className="font-semibold text-slate-900">Reimbursements Received ({data.reimbursements_in.length})</h2>
+            <h2 className="font-semibold text-slate-900">Reimbursements Received ({liveReimbIn.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.reimbursements_in.map((r) => (
+            {liveReimbIn.map((r) => (
               <div key={r.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-reimb-in-row-${r.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate ${r.voided ? "line-through" : ""}`}>from {r.paid_by}</div>
@@ -491,14 +505,14 @@ export default function MemberDetail() {
       )}
 
       {/* Reimbursements paid out */}
-      {data && data.reimbursements_out && data.reimbursements_out.length > 0 && (
+      {liveReimbOut.length > 0 && (
         <section className="card-elevated p-4" data-testid="member-reimb-out-section">
           <div className="flex items-center gap-2 mb-2">
             <HandCoins size={16} className="text-orange-700" />
-            <h2 className="font-semibold text-slate-900">Reimbursements Paid Out ({data.reimbursements_out.length})</h2>
+            <h2 className="font-semibold text-slate-900">Reimbursements Paid Out ({liveReimbOut.length})</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {data.reimbursements_out.map((r) => (
+            {liveReimbOut.map((r) => (
               <div key={r.id} className="py-2 flex items-center gap-2 text-sm" data-testid={`member-reimb-out-row-${r.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className={`font-medium text-slate-900 truncate ${r.voided ? "line-through" : ""}`}>to {r.to_member}</div>
