@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exported_at": "2026-09-16T09:16:40.205509+00:00",
+  "exported_at": "2026-09-16T09:27:58.350341+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -2134,6 +2134,42 @@
       "voided": false,
       "created_at": "2026-09-16T08:47:55.591184+00:00",
       "updated_at": "2026-09-16T08:47:55.591195+00:00"
+    },
+    {
+      "description": "Night idli",
+      "vendor": null,
+      "category": "Food",
+      "total_bill": 300.0,
+      "amount_paid": 300.0,
+      "group_funds_used": 0.0,
+      "personal_contribution": 300.0,
+      "paid_by": "Mogli",
+      "payment_mode": "Cash",
+      "date": "2026-09-16",
+      "note": "Night me idli — khane ke liye. Spent by Mogli.",
+      "event": "Ganpati Mandap",
+      "id": "8a913da6-85d9-45d0-9879-8dc9a6183f5f",
+      "voided": false,
+      "created_at": "2026-09-16T09:27:47.288235+00:00",
+      "updated_at": "2026-09-16T09:27:47.288246+00:00"
+    },
+    {
+      "description": "Haar phool",
+      "vendor": null,
+      "category": "Materials",
+      "total_bill": 500.0,
+      "amount_paid": 500.0,
+      "group_funds_used": 0.0,
+      "personal_contribution": 500.0,
+      "paid_by": "Mogli",
+      "payment_mode": "Cash",
+      "date": "2026-09-16",
+      "note": "Haar phool. Spent by Mogli.",
+      "event": "Ganpati Mandap",
+      "id": "dcafa643-3b84-4f59-9627-500052de06bf",
+      "voided": false,
+      "created_at": "2026-09-16T09:27:47.313563+00:00",
+      "updated_at": "2026-09-16T09:27:47.313570+00:00"
     }
   ],
   "transfers": [
