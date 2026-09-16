@@ -171,7 +171,7 @@ def test_backup_v2_includes_expenses(s):
     r = s.get(f"{API}/backup")
     assert r.status_code == 200
     data = r.json()
-    assert data["version"] == 2
+    assert data["version"] >= 2
     assert "expenses" in data and isinstance(data["expenses"], list)
     assert "chandas" in data and "collectors" in data
 

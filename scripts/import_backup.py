@@ -22,9 +22,8 @@ COLLECTIONS = (
     "transfers",
     "reimbursements",
     "receipt_books",
+    "event_transfers",
 )
-# Extra collections that are not in older backups but should not mix with restored data.
-CLEAR_ALSO = ("event_transfers",)
 
 
 def import_backup(path: Path, mode: str) -> dict[str, int]:
@@ -36,7 +35,7 @@ def import_backup(path: Path, mode: str) -> dict[str, int]:
     counts: dict[str, int] = {}
 
     if mode == "replace":
-        for name in COLLECTIONS + CLEAR_ALSO:
+        for name in COLLECTIONS:
             db[name].delete_many({})
 
     for name in COLLECTIONS:

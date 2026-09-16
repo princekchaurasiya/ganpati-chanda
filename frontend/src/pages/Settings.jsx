@@ -134,14 +134,21 @@ export default function Settings() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const mode = window.confirm(
-        "OK = REPLACE all existing data with backup.\nCancel = MERGE backup with existing data."
+        "Ghar wale / naya laptop: OK dabao = REPLACE.\nPurani Mongo data hat ke poori JSON lag jayegi (chanda + expenses + transfers + members + books).\n\nCancel = MERGE (mix) — ghar pe Cancel mat dabana.",
       ) ? "replace" : "merge";
       const res = await backupApi.restore({
         chandas: parsed.chandas || [],
         collectors: parsed.collectors || [],
+        expenses: parsed.expenses || [],
+        transfers: parsed.transfers || [],
+        reimbursements: parsed.reimbursements || [],
+        receipt_books: parsed.receipt_books || [],
+        event_transfers: parsed.event_transfers || [],
         mode,
       });
-      toast.success(`Restored ${res.chandas_restored} entries`);
+      toast.success(
+        `Restored ${res.chandas_restored} chanda, ${res.expenses_restored || 0} expenses, ${res.transfers_restored || 0} transfers`,
+      );
       load();
     } catch {
       toast.error("Invalid backup file");
@@ -347,7 +354,7 @@ export default function Settings() {
         <h2 className="font-semibold text-slate-900 mb-1">Backup & Restore</h2>
         <p className="text-xs text-slate-500 mb-3 flex items-start gap-1">
           <Info size={12} className="mt-0.5 shrink-0" />
-          Download JSON backup to Google Drive, Email, or cloud storage. Restore anytime.
+          Poori JSON: chanda, members, expenses, transfers, reimbursements, receipt books. Ghar wale laptop pe git pull ke baad yahi file Restore (OK = Replace) se lagao, ya <span className="font-mono">./scripts/import-backup.sh</span>.
         </p>
         <div className="space-y-2">
           <button onClick={downloadBackup} data-testid="backup-download-btn"

@@ -239,8 +239,8 @@ def test_backup_v4(s):
     r = s.get(f"{API}/backup")
     assert r.status_code == 200
     b = r.json()
-    assert b["version"] == 4
-    for k in ("chandas", "collectors", "expenses", "transfers", "reimbursements"):
+    assert b["version"] >= 4
+    for k in ("chandas", "collectors", "expenses", "transfers", "reimbursements", "receipt_books", "event_transfers"):
         assert k in b and isinstance(b[k], list)
 
 

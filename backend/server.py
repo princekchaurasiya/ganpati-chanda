@@ -1137,10 +1137,21 @@ async def dashboard(year: Optional[str] = None):
 
 
 # ============= Backup =============
+BACKUP_COLLECTIONS = (
+    "chandas",
+    "collectors",
+    "expenses",
+    "transfers",
+    "reimbursements",
+    "receipt_books",
+    "event_transfers",
+)
+
+
 @api_router.get("/backup")
 async def backup():
     return {
-        "version": 5,
+        "version": 6,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "chandas": await db.chandas.find({}, {"_id": 0}).to_list(50000),
         "collectors": await db.collectors.find({}, {"_id": 0}).to_list(1000),
@@ -1148,6 +1159,7 @@ async def backup():
         "transfers": await db.transfers.find({}, {"_id": 0}).to_list(50000),
         "reimbursements": await db.reimbursements.find({}, {"_id": 0}).to_list(50000),
         "receipt_books": await db.receipt_books.find({}, {"_id": 0}).to_list(1000),
+        "event_transfers": await db.event_transfers.find({}, {"_id": 0}).to_list(1000),
     }
 
 
@@ -1159,18 +1171,20 @@ class RestorePayload(BaseModel):
     transfers: List[dict] = []
     reimbursements: List[dict] = []
     receipt_books: List[dict] = []
+    event_transfers: List[dict] = []
     mode: Literal["replace", "merge"] = "merge"
 
 
 @api_router.post("/restore")
 async def restore(payload: RestorePayload):
     if payload.mode == "replace":
-        for coll in ("chandas", "collectors", "expenses", "transfers", "reimbursements", "receipt_books"):
+        for coll in BACKUP_COLLECTIONS:
             await db[coll].delete_many({})
     for coll, items in [
         ("chandas", payload.chandas), ("collectors", payload.collectors),
         ("expenses", payload.expenses), ("transfers", payload.transfers),
         ("reimbursements", payload.reimbursements), ("receipt_books", payload.receipt_books),
+        ("event_transfers", payload.event_transfers),
     ]:
         for it in items:
             it.pop("_id", None)
@@ -1185,6 +1199,7 @@ async def restore(payload: RestorePayload):
         "transfers_restored": len(payload.transfers),
         "reimbursements_restored": len(payload.reimbursements),
         "receipt_books_restored": len(payload.receipt_books),
+        "event_transfers_restored": len(payload.event_transfers),
     }
 
 

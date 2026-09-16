@@ -49,7 +49,33 @@ Or step by step:
 ./scripts/import-backup.sh  # restore the 15 Sep 2026 backup (replace)
 ```
 
-Re-import the bundled backup any time with `./scripts/import-backup.sh`. Demo seed (`POST /api/seed`) is only for an empty database and is skipped if chanda rows already exist.
+Re-import the bundled backup any time with `./scripts/import-backup.sh` (replace mode — wipes local Mongo and loads the JSON). Demo seed (`POST /api/seed`) is only for an empty database and is skipped if chanda rows already exist.
+
+The file `data/chanda-backup-2026-09-15.json` is the **current full dump** (filename date is old; content is kept up to date). It includes chandas, members, expenses, transfers, reimbursements, receipt books, and event transfers.
+
+## Doosre laptop pe (ghar)
+
+GitHub se code pull karo, Mongo start karo, JSON **replace** se import:
+
+```bash
+git pull
+chmod +x scripts/*.sh
+./scripts/install.sh          # first time: deps + JSON import + frontend build
+./scripts/start-app.sh
+# open http://127.0.0.1:45211
+```
+
+Agar repo pehle se pada hai:
+
+```bash
+git pull
+./scripts/import-backup.sh    # REPLACE — ghar pe yahi
+./scripts/start-app.sh
+```
+
+Ya app khol ke **Settings → Restore from Backup**, `data/chanda-backup-2026-09-15.json` choose karo, **OK = Replace**. Cancel mat dabana (woh merge/mix karta hai).
+
+Settings → Download Backup se naya JSON nikal ke Drive pe bhi rakh sakte ho.
 
 ## Environment
 
