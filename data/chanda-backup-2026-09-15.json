@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "exported_at": "2026-09-16T12:31:41.018600+00:00",
+  "exported_at": "2026-09-16T12:37:28.034828+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -2431,5 +2431,22 @@
       "start_no": 151
     }
   ],
-  "event_transfers": []
+  "event_transfers": [],
+  "summary": {
+    "chanda_promised": 164214.0,
+    "chanda_received": 123667.0,
+    "expense_paid": 138129.0,
+    "group_funds_used": 122664.0,
+    "personal_contribution": 15465.0,
+    "remaining_balance": 1003.0,
+    "counts": {
+      "chandas": 101,
+      "collectors": 17,
+      "expenses": 24,
+      "transfers": 5,
+      "reimbursements": 0,
+      "receipt_books": 3,
+      "event_transfers": 0
+    }
+  }
 }

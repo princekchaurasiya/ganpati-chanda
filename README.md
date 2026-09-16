@@ -56,27 +56,30 @@ The file `data/chanda-backup-2026-09-15.json` is the **current full dump** (file
 
 ## Doosre laptop pe (ghar)
 
-GitHub se code pull karo, Mongo start karo, JSON **replace** se import:
+Poora hisab git pe **JSON backup** ke saath hai (`data/chanda-backup-2026-09-15.json`). Sirf `git pull` Mongo nahi bharta — import zaroori hai. Is dump me chandas (101), collectors, expenses (24), transfers, receipt books, reimbursements, event transfers sab hain. Import ke baad Remaining ~ **Rs.1,003** dikhna chahiye.
+
+### Naya computer (pehli baar)
 
 ```bash
-git pull
+git clone https://github.com/princekchaurasiya/ganpati-chanda.git
+cd ganpati-chanda
 chmod +x scripts/*.sh
-./scripts/install.sh          # first time: deps + JSON import + frontend build
+./scripts/install.sh          # deps + Mongo + JSON REPLACE import + frontend build
 ./scripts/start-app.sh
 # open http://127.0.0.1:45211
 ```
 
-Agar repo pehle se pada hai:
+### Repo pehle se pada hai
 
 ```bash
 git pull
-./scripts/import-backup.sh    # REPLACE — ghar pe yahi
+./scripts/import-backup.sh    # REPLACE — purana local Mongo wipe, git wala dump aata hai
 ./scripts/start-app.sh
 ```
 
 Ya app khol ke **Settings → Restore from Backup**, `data/chanda-backup-2026-09-15.json` choose karo, **OK = Replace**. Cancel mat dabana (woh merge/mix karta hai).
 
-Settings → Download Backup se naya JSON nikal ke Drive pe bhi rakh sakte ho.
+Settings → Download Backup se naya JSON nikal ke Drive pe bhi rakh sakte ho. Yahan se dump refresh: `./scripts/export-backup.sh` then commit/push.
 
 ## Environment
 
