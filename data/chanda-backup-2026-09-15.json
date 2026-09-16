@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exported_at": "2026-09-16T09:27:58.350341+00:00",
+  "exported_at": "2026-09-16T09:33:03.684910+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -1713,6 +1713,48 @@
       "status": "Collected",
       "updated_at": "2026-09-15T11:08:15.646842+00:00",
       "voided": false
+    },
+    {
+      "name": "Brijesh Naag",
+      "mobile": null,
+      "amount": 10000.0,
+      "received_amount": 10000.0,
+      "collector": "Ramakant",
+      "payment_mode": "Cash",
+      "status": "Collected",
+      "date": "2026-09-16",
+      "receipt_book_id": null,
+      "receipt_book_name": null,
+      "receipt_no": null,
+      "note": "Pavti abhi nahi bani.",
+      "event": "Ganpati Mandap",
+      "donor_member": null,
+      "id": "d7c6017c-5ac3-4183-bb81-fc3cf320f738",
+      "voided": false,
+      "collected_at": "2026-09-16T09:32:54.811921+00:00",
+      "created_at": "2026-09-16T09:32:54.811909+00:00",
+      "updated_at": "2026-09-16T09:32:54.811916+00:00"
+    },
+    {
+      "name": "Sandeep Tedhu",
+      "mobile": null,
+      "amount": 3000.0,
+      "received_amount": 3000.0,
+      "collector": "Ramakant",
+      "payment_mode": "Cash",
+      "status": "Collected",
+      "date": "2026-09-16",
+      "receipt_book_id": null,
+      "receipt_book_name": null,
+      "receipt_no": null,
+      "note": "Pavti abhi nahi bani.",
+      "event": "Ganpati Mandap",
+      "donor_member": null,
+      "id": "727807ed-556a-4f00-bc43-6bc5e1ed3673",
+      "voided": false,
+      "collected_at": "2026-09-16T09:32:54.813942+00:00",
+      "created_at": "2026-09-16T09:32:54.813930+00:00",
+      "updated_at": "2026-09-16T09:32:54.813937+00:00"
     }
   ],
   "collectors": [
@@ -1790,6 +1832,11 @@
       "id": "f704ae09-b5d9-4e68-9a65-d732235b5e8e",
       "name": "Abhishek (Sonu)",
       "created_at": "2026-09-15T18:48:10.635951+00:00"
+    },
+    {
+      "id": "0a122502-e112-46a5-bbfe-5aba68aa0231",
+      "name": "Ramakant",
+      "created_at": "2026-09-16T09:32:54.810100+00:00"
     }
   ],
   "expenses": [
@@ -2170,6 +2217,24 @@
       "voided": false,
       "created_at": "2026-09-16T09:27:47.313563+00:00",
       "updated_at": "2026-09-16T09:27:47.313570+00:00"
+    },
+    {
+      "description": "Murti idol",
+      "vendor": "Murti wala",
+      "category": "Murti",
+      "total_bill": 13000.0,
+      "amount_paid": 13000.0,
+      "group_funds_used": 13000.0,
+      "personal_contribution": 0.0,
+      "paid_by": "Ramakant",
+      "payment_mode": "Cash",
+      "date": "2026-09-16",
+      "note": "Brijesh Naag ₹10,000 + Sandeep Tedhu ₹3,000 = ₹13,000 given to murti idol. Idol total ₹65,000 now covered. Pavti abhi nahi bani.",
+      "event": "Ganpati Mandap",
+      "id": "5187a5e6-0653-43ff-9346-d1be8ebe53cc",
+      "voided": false,
+      "created_at": "2026-09-16T09:32:54.849588+00:00",
+      "updated_at": "2026-09-16T09:32:54.849597+00:00"
     }
   ],
   "transfers": [
