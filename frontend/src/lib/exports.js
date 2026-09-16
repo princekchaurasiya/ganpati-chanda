@@ -783,13 +783,18 @@ export const MEMBER_CHANDA_LIST_COLS = [
 
 export const MEMBER_CHANDA_LIST_DEFAULT_COLS = ["received", "pending", "status"];
 
-const personalChandasForMember = (chandas, memberName) => {
+const personalChandasForMember = (chandas, memberName, eventFilter) => {
   const n = String(memberName || "").toLowerCase().trim();
   return (chandas || []).filter((c) => {
     if (c.voided) return false;
-    if ((c.donor_member || "").toLowerCase().trim() === n) return true;
-    if ((c.name || "").toLowerCase().trim() === n && !c.donor_member) return true;
-    return false;
+    const dm = (c.donor_member || "").toLowerCase().trim();
+    const nm = (c.name || "").toLowerCase().trim();
+    const isPersonal = dm === n || (nm === n && !c.donor_member);
+    if (!isPersonal) return false;
+    if (eventFilter && eventFilter !== "All") {
+      return (c.event || "Ganpati Mandap") === eventFilter;
+    }
+    return true;
   });
 };
 
@@ -810,9 +815,9 @@ const receiptLabel = (c) => {
   return c.receipt_no != null ? `${book ? `${book} / ` : ""}${c.receipt_no}` : (book || "-");
 };
 
-const buildMemberPersonalRows = (members, chandas) => {
+const buildMemberPersonalRows = (members, chandas, eventFilter) => {
   const rows = (members || []).map((m) => {
-    const entries = personalChandasForMember(chandas, m.name);
+    const entries = personalChandasForMember(chandas, m.name, eventFilter);
     const promised = entries.reduce((s, c) => s + Number(c.amount || 0), 0);
     const received = entries.reduce((s, c) => s + chandaReceivedAmt(c), 0);
     const pending = Math.max(0, promised - received);
@@ -850,11 +855,11 @@ const entryCell = (c, key) => {
   return "";
 };
 
-export const downloadMemberChandaListPDF = (members, chandas, selectedCols) => {
+export const downloadMemberChandaListPDF = (members, chandas, selectedCols, eventFilter = "All") => {
   const cols = selectedColDefs(selectedCols);
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
-  const rows = buildMemberPersonalRows(members, chandas);
+  const rows = buildMemberPersonalRows(members, chandas, eventFilter);
   const aaya = rows.filter((r) => r.status === "Aaya").length;
   const partial = rows.filter((r) => r.status === "Partial").length;
   const pendingN = rows.filter((r) => r.status === "Pending").length;
@@ -873,7 +878,7 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols) => {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, left, 22);
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}  ·  ${eventFilter === "All" ? "All events (mandap + dahi handi + linked)" : eventFilter}`, left, 22);
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
   doc.text(`Aaya ${aaya}  ·  Partial ${partial}  ·  Pending ${pendingN}`, left, 30);
@@ -942,11 +947,11 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols) => {
   doc.save(`chanda-members-${dt()}.pdf`);
 };
 
-export const downloadMemberChandaListExcel = (members, chandas, selectedCols) => {
+export const downloadMemberChandaListExcel = (members, chandas, selectedCols, eventFilter = "All") => {
   const cols = selectedColDefs(selectedCols);
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
-  const rows = buildMemberPersonalRows(members, chandas);
+  const rows = buildMemberPersonalRows(members, chandas, eventFilter);
   const totRecv = rows.reduce((s, r) => s + r.received, 0);
   const totPend = rows.reduce((s, r) => s + r.pending, 0);
   const totProm = rows.reduce((s, r) => s + r.promised, 0);

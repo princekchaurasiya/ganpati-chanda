@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { memberApi, transferApi, ledgerApi, collectorApi, chandaApi } from "@/lib/api";
 import { formatINR, formatDate, formatDateTimeIST } from "@/lib/format";
@@ -6,7 +6,7 @@ import { ArrowRightLeft, Ban, HandCoins, Receipt, MoreVertical, Pencil, Trash2, 
 import { toast } from "sonner";
 import { downloadMembersPDF, downloadMembersExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, collectionsForMember, downloadMemberChandaListPDF, downloadMemberChandaListExcel, MEMBER_CHANDA_LIST_COLS, MEMBER_CHANDA_LIST_DEFAULT_COLS } from "@/lib/exports";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import MemberEditSheet from "@/components/MemberEditSheet";
+import { mergeEvents, DEFAULT_EVENT } from "@/lib/events";
 
 const memberNet = (m) => {
   if (!m) return 0;
@@ -31,6 +31,7 @@ export default function Members() {
   const [editSheet, setEditSheet] = useState(null); // { name, focus }
   const [chandas, setChandas] = useState([]);
   const [chandaListCols, setChandaListCols] = useState(MEMBER_CHANDA_LIST_DEFAULT_COLS);
+  const [chandaListEvent, setChandaListEvent] = useState(DEFAULT_EVENT);
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +55,11 @@ export default function Members() {
     }
   };
   useEffect(() => { load(); }, []);
+
+  const chandaListEvents = useMemo(
+    () => mergeEvents((chandas || []).map((c) => c.event).filter(Boolean)),
+    [chandas],
+  );
 
   const collectorFor = (name) => collectors.find((c) => c.name === name);
 
@@ -226,8 +232,21 @@ export default function Members() {
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">Personal chanda list</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Member ka apna chanda aaya ya nahi. Columns tick karo — PDF/Excel usi hisab se banega. Collector/Date tick karoge to receipts bhi aayengi.
+                  Member ka apna chanda. Event choose karo: sirf mandap personal, ya All (Dahi Handi helper bhi). Columns tick karke PDF/Excel.
                 </p>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Kaunsa chanda</div>
+                <div className="flex flex-wrap gap-1.5" data-testid="chanda-list-event-chips">
+                  <button type="button" onClick={() => setChandaListEvent("All")}
+                    data-testid="chanda-list-event-all"
+                    className={`chip ${chandaListEvent === "All" ? "chip-active" : ""}`}>All (mandap + dahi handi)</button>
+                  {chandaListEvents.map((ev) => (
+                    <button type="button" key={ev} onClick={() => setChandaListEvent(ev)}
+                      data-testid={`chanda-list-event-${ev.replace(/\s+/g, "-").toLowerCase()}`}
+                      className={`chip ${chandaListEvent === ev ? "chip-active" : ""}`}>{ev}</button>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {MEMBER_CHANDA_LIST_COLS.map((c) => (
@@ -250,7 +269,7 @@ export default function Members() {
                   type="button"
                   onClick={() => {
                     try {
-                      downloadMemberChandaListPDF(members, chandas, chandaListCols);
+                      downloadMemberChandaListPDF(members, chandas, chandaListCols, chandaListEvent);
                       toast.success("Chanda list PDF downloaded");
                     } catch { toast.error("PDF export failed"); }
                   }}
@@ -263,7 +282,7 @@ export default function Members() {
                   type="button"
                   onClick={() => {
                     try {
-                      downloadMemberChandaListExcel(members, chandas, chandaListCols);
+                      downloadMemberChandaListExcel(members, chandas, chandaListCols, chandaListEvent);
                       toast.success("Chanda list Excel downloaded");
                     } catch { toast.error("Excel export failed"); }
                   }}
