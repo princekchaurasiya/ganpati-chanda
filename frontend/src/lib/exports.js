@@ -769,10 +769,10 @@ export const downloadMemberExpenseReportExcel = (name, expenses) => {
 };
 
 export const MEMBER_CHANDA_LIST_COLS = [
-  { key: "received", label: "Received", kind: "rollup" },
+  { key: "received", label: "Aaya", kind: "rollup" },
   { key: "pending", label: "Pending", kind: "rollup" },
   { key: "status", label: "Status", kind: "rollup" },
-  { key: "promised", label: "Promised", kind: "rollup" },
+  { key: "promised", label: "Donor promise", kind: "rollup" },
   { key: "entries", label: "Entries", kind: "rollup" },
   { key: "collector", label: "Collector", kind: "entry" },
   { key: "date", label: "Date", kind: "entry" },
@@ -783,22 +783,49 @@ export const MEMBER_CHANDA_LIST_COLS = [
 
 export const MEMBER_CHANDA_LIST_DEFAULT_COLS = ["received", "pending", "status"];
 
-const personalChandasForMember = (chandas, memberName, eventFilter) => {
-  const n = String(memberName || "").toLowerCase().trim();
+const normName = (s) => String(s || "").toLowerCase().trim();
+
+const chandaReceivedAmt = (c) => Number(c.received_amount != null ? c.received_amount : (c.status === "Collected" ? c.amount : 0)) || 0;
+
+const entryPendingAmt = (c) => Math.max(0, Number(c.amount || 0) - chandaReceivedAmt(c));
+
+/** Slip written in the member's own name (their personal chanda, aaya or pending). */
+const isExactMemberSlip = (c, memberName) => {
+  const n = normName(memberName);
+  const nm = normName(c.name);
+  const dm = normName(c.donor_member);
+  return nm === n && (!dm || dm === n);
+};
+
+/** Linked to the member and money actually received (e.g. "Mintu Bhai" → Mintu). */
+const isLinkedReceived = (c, memberName) => {
+  const n = normName(memberName);
+  return normName(c.donor_member) === n && chandaReceivedAmt(c) > 0.01;
+};
+
+/**
+ * Collector-book promise linked to the member but not yet received, and the
+ * slip name is not the member's own name (e.g. Book 2 "Manoj chaurasiya" ₹501).
+ */
+const isDonorPromiseSlip = (c, memberName) => {
+  const n = normName(memberName);
+  if (normName(c.donor_member) !== n) return false;
+  if (normName(c.name) === n) return false;
+  return chandaReceivedAmt(c) <= 0.01;
+};
+
+export const personalChandasForMember = (chandas, memberName, eventFilter, includeDonorPromises = false) => {
   return (chandas || []).filter((c) => {
     if (c.voided) return false;
-    const dm = (c.donor_member || "").toLowerCase().trim();
-    const nm = (c.name || "").toLowerCase().trim();
-    const isPersonal = dm === n || (nm === n && !c.donor_member);
-    if (!isPersonal) return false;
+    const personal = isExactMemberSlip(c, memberName) || isLinkedReceived(c, memberName);
+    const promise = includeDonorPromises && isDonorPromiseSlip(c, memberName);
+    if (!personal && !promise) return false;
     if (eventFilter && eventFilter !== "All") {
       return (c.event || "Ganpati Mandap") === eventFilter;
     }
     return true;
   });
 };
-
-const chandaReceivedAmt = (c) => Number(c.received_amount != null ? c.received_amount : (c.status === "Collected" ? c.amount : 0)) || 0;
 
 const personalChandaStatus = (promised, received, pending) => {
   if (promised <= 0.01) return "—";
@@ -815,9 +842,20 @@ const receiptLabel = (c) => {
   return c.receipt_no != null ? `${book ? `${book} / ` : ""}${c.receipt_no}` : (book || "-");
 };
 
-const buildMemberPersonalRows = (members, chandas, eventFilter) => {
+const pendingSlipsFromRows = (rows) => {
+  const slips = [];
+  (rows || []).forEach((r) => {
+    (r.entries || []).forEach((c) => {
+      const pend = entryPendingAmt(c);
+      if (pend > 0.01) slips.push({ member: r.name, c, pend });
+    });
+  });
+  return slips;
+};
+
+export const buildMemberPersonalRows = (members, chandas, eventFilter, includeDonorPromises = false) => {
   const rows = (members || []).map((m) => {
-    const entries = personalChandasForMember(chandas, m.name, eventFilter);
+    const entries = personalChandasForMember(chandas, m.name, eventFilter, includeDonorPromises);
     const promised = entries.reduce((s, c) => s + Number(c.amount || 0), 0);
     const received = entries.reduce((s, c) => s + chandaReceivedAmt(c), 0);
     const pending = Math.max(0, promised - received);
@@ -857,15 +895,17 @@ const entryCell = (c, key) => {
 
 export const downloadMemberChandaListPDF = (members, chandas, selectedCols, eventFilter = "All") => {
   const cols = selectedColDefs(selectedCols);
+  const includeDonorPromises = (selectedCols || []).includes("promised");
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
-  const rows = buildMemberPersonalRows(members, chandas, eventFilter);
+  const rows = buildMemberPersonalRows(members, chandas, eventFilter, includeDonorPromises);
   const aaya = rows.filter((r) => r.status === "Aaya").length;
   const partial = rows.filter((r) => r.status === "Partial").length;
   const pendingN = rows.filter((r) => r.status === "Pending").length;
   const totRecv = rows.reduce((s, r) => s + r.received, 0);
   const totPend = rows.reduce((s, r) => s + r.pending, 0);
   const totProm = rows.reduce((s, r) => s + r.promised, 0);
+  const slips = pendingSlipsFromRows(rows);
 
   const doc = new jsPDF({ orientation: "portrait" });
   const pageH = doc.internal.pageSize.getHeight();
@@ -876,13 +916,18 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
   doc.setTextColor(15, 23, 42);
   doc.text("Chanda list — members (personal)", left, 16);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(100);
-  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}  ·  ${eventFilter === "All" ? "All events (mandap + dahi handi + linked)" : eventFilter}`, left, 22);
+  const scope = eventFilter === "All" ? "All events (mandap + dahi handi + linked)" : eventFilter;
+  const mode = includeDonorPromises
+    ? "Personal chanda + donor-book promises"
+    : "Sirf personal chanda (donor-book promise nahi)";
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}  ·  ${scope}`, left, 22);
+  doc.text(mode, left, 27);
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Aaya ${aaya}  ·  Partial ${partial}  ·  Pending ${pendingN}`, left, 30);
-  doc.text(`Received ${formatRs(totRecv)}  ·  Pending ${formatRs(totPend)}`, left, 36);
+  doc.text(`Aaya ${aaya}  ·  Partial ${partial}  ·  Pending ${pendingN}`, left, 35);
+  doc.text(`Aaya ${formatRs(totRecv)}  ·  Pending ${formatRs(totPend)}`, left, 41);
 
   const head = ["Member", ...rollupCols.map((c) => c.label)];
   const body = rows.map((r) => [r.name, ...rollupCols.map((c) => rollupCell(r, c.key))]);
@@ -896,7 +941,7 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
   })];
 
   autoTable(doc, {
-    startY: 42,
+    startY: 47,
     head: [head],
     body: [...body, totalRow],
     styles: { fontSize: 10, cellPadding: 2.2 },
@@ -912,26 +957,58 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
     },
   });
 
-  if (entryCols.length) {
-    let y = doc.lastAutoTable.finalY + 10;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(13, 148, 136);
-    if (y > pageH - 28) {
+  let y = doc.lastAutoTable.finalY + 10;
+  const ensureY = (need) => {
+    if (y + need > pageH - 14) {
       doc.addPage();
       y = 16;
     }
+  };
+
+  ensureY(22);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(13, 148, 136);
+  doc.text("Pending kahan se — personal slips", left, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  if (!slips.length) {
+    doc.text("Koi personal pending nahi. Jo table me Aaya hai, woh aa chuka.", left, y);
+    y += 8;
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Member", "Slip name", "Pending", "Collector", "Receipt", "Date"]],
+      body: slips.map((s) => [
+        s.member,
+        s.c.name || "-",
+        formatRs(s.pend),
+        s.c.collector || "-",
+        receiptLabel(s.c),
+        formatDate(s.c.date),
+      ]),
+      styles: { fontSize: 8, cellPadding: 1.8 },
+      headStyles: { fillColor: [180, 83, 9], textColor: 255, fontStyle: "bold" },
+      margin: { left, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  if (entryCols.length) {
+    ensureY(20);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(13, 148, 136);
     doc.text("Personal chanda entries", left, y);
     y += 4;
     rows.filter((r) => r.entries.length).forEach((r) => {
-      if (y > pageH - 36) {
-        doc.addPage();
-        y = 16;
-      }
+      ensureY(36);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
-      doc.text(`${r.name}  ·  ${formatRs(r.received)} received`, left, y + 6);
+      doc.text(`${r.name}  ·  Aaya ${formatRs(r.received)}  ·  Pending ${formatRs(r.pending)}`, left, y + 6);
       autoTable(doc, {
         startY: y + 8,
         head: [entryCols.map((c) => c.label)],
@@ -949,13 +1026,15 @@ export const downloadMemberChandaListPDF = (members, chandas, selectedCols, even
 
 export const downloadMemberChandaListExcel = (members, chandas, selectedCols, eventFilter = "All") => {
   const cols = selectedColDefs(selectedCols);
+  const includeDonorPromises = (selectedCols || []).includes("promised");
   const rollupCols = cols.filter((c) => c.kind === "rollup");
   const entryCols = cols.filter((c) => c.kind === "entry");
-  const rows = buildMemberPersonalRows(members, chandas, eventFilter);
+  const rows = buildMemberPersonalRows(members, chandas, eventFilter, includeDonorPromises);
   const totRecv = rows.reduce((s, r) => s + r.received, 0);
   const totPend = rows.reduce((s, r) => s + r.pending, 0);
   const totProm = rows.reduce((s, r) => s + r.promised, 0);
   const totEntries = rows.reduce((s, r) => s + r.count, 0);
+  const slips = pendingSlipsFromRows(rows);
 
   const numCell = (row, key) => {
     if (key === "received") return row.received;
@@ -999,6 +1078,18 @@ export const downloadMemberChandaListExcel = (members, chandas, selectedCols, ev
     if (!entrySheet.length) entrySheet.push({ Member: "No personal chanda entries" });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(entrySheet), "Personal chanda");
   }
+
+  const pendingSheet = slips.length
+    ? slips.map((s) => ({
+      Member: s.member,
+      "Slip name": s.c.name || "",
+      Pending: s.pend,
+      Collector: s.c.collector || "",
+      Receipt: receiptLabel(s.c),
+      Date: s.c.date || "",
+    }))
+    : [{ Member: "Koi personal pending nahi", "Slip name": "", Pending: 0, Collector: "", Receipt: "", Date: "" }];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pendingSheet), "Pending slips");
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   saveAs(new Blob([buf], { type: "application/octet-stream" }), `chanda-members-${dt()}.xlsx`);

@@ -232,7 +232,7 @@ export default function Members() {
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">Personal chanda list</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Member ka apna chanda. Event choose karo: sirf mandap personal, ya All (Dahi Handi helper bhi). Columns tick karke PDF/Excel.
+                  Default: member ka apna chanda jo aaya (jaise Manoj ₹5,000 GPay). Collector book ki donor promise (jaise Book 2 “Manoj chaurasiya” ₹501 pending) tabhi aati hai jab <span className="font-semibold text-slate-700">Donor promise</span> tick ho. PDF pe Aaya vs Pending alag dikhega, pending ho to slip name + receipt bhi.
                 </p>
               </div>
               <div>
@@ -250,7 +250,7 @@ export default function Members() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {MEMBER_CHANDA_LIST_COLS.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                  <label key={c.key} className={`flex items-center gap-2 p-2 border rounded-xl cursor-pointer hover:bg-slate-50 ${c.key === "promised" ? "border-amber-300 bg-amber-50/70" : "border-slate-200"}`}>
                     <input
                       type="checkbox"
                       checked={chandaListCols.includes(c.key)}
@@ -260,7 +260,10 @@ export default function Members() {
                       data-testid={`chanda-list-col-${c.key}`}
                       className="w-4 h-4"
                     />
-                    <span className="text-sm font-medium text-slate-700">{c.label}</span>
+                    <span className="text-sm font-medium text-slate-700">
+                      {c.label}
+                      {c.key === "promised" ? <span className="block text-[10px] font-normal text-slate-500">Book ki pending promise</span> : null}
+                    </span>
                   </label>
                 ))}
               </div>

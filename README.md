@@ -12,6 +12,7 @@ This is a local setup of the [ganpati-chanda](https://github.com/princekchaurasi
 - Each member **Hisab PDF**: uska plus/minus NET HISAB + collections, transfers, expenses
 - Each member **Reports** menu: Chanda report (PDF/Excel) and Expense report (PDF/Excel)
 - Members list **Hisab PDF**: sab members ka plus/minus net hisab bade font mein
+- Members **Personal chanda list** PDF/Excel: default Aaya vs Pending sirf member ke apne chanda ka; collector-book donor promise tabhi jab **Donor promise** tick ho
 - Filterable lists, PDF / Excel / CSV reports
 - JSON backup and restore (Settings)
 - Year switcher so 2026 data stays separate from a new year
