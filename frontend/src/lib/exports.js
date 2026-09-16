@@ -988,9 +988,6 @@ export const downloadMemberChandaListExcel = (members, chandas, selectedCols) =>
           if (col.key === "date") o[col.label] = c.date || "";
           else o[col.label] = entryCell(c, col.key);
         });
-        o.Promised = Number(c.amount || 0);
-        o.Received = chandaReceivedAmt(c);
-        o.Status = c.status || "";
         entrySheet.push(o);
       });
     });
