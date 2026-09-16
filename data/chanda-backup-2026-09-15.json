@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exported_at": "2026-09-16T09:45:48.134907+00:00",
+  "exported_at": "2026-09-16T10:54:51.058252+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -1637,18 +1637,18 @@
       "collector": "Monu",
       "created_at": "2026-09-12T14:15:06.816545+00:00",
       "date": "2026-09-12",
-      "donor_member": "",
+      "donor_member": "Shakti group",
       "event": "Ganpati Mandap",
       "mobile": null,
       "name": "Shakti nag",
-      "note": null,
+      "note": "Personal chanda — Shakti group. Book 4 / 172 already on this slip.",
       "payment_mode": "UPI",
       "receipt_book_id": "33b3c719-2485-4983-be07-215a55f2f886",
       "receipt_book_name": "Book 4",
       "receipt_no": 172,
       "received_amount": 3000,
       "status": "Collected",
-      "updated_at": "2026-09-12T14:15:06.816555+00:00",
+      "updated_at": "2026-09-16T10:54:38.060208+00:00",
       "voided": false
     },
     {
@@ -1755,6 +1755,48 @@
       "collected_at": "2026-09-16T09:32:54.813942+00:00",
       "created_at": "2026-09-16T09:32:54.813930+00:00",
       "updated_at": "2026-09-16T09:32:54.813937+00:00"
+    },
+    {
+      "name": "Amit Chaurasiya",
+      "mobile": null,
+      "amount": 3100.0,
+      "received_amount": 3100.0,
+      "collector": "Monu",
+      "payment_mode": "UPI",
+      "status": "Collected",
+      "date": "2026-09-16",
+      "receipt_book_id": null,
+      "receipt_book_name": null,
+      "receipt_no": null,
+      "note": "GPay Monu. Receipt book/no baad me update.",
+      "event": "Ganpati Mandap",
+      "donor_member": null,
+      "id": "6938da36-f61e-4b01-8d1b-7344d9b4a879",
+      "voided": false,
+      "collected_at": "2026-09-16T10:54:38.063727+00:00",
+      "created_at": "2026-09-16T10:54:38.063715+00:00",
+      "updated_at": "2026-09-16T10:54:38.063721+00:00"
+    },
+    {
+      "name": "Neeraj Grill Works",
+      "mobile": null,
+      "amount": 2500.0,
+      "received_amount": 2500.0,
+      "collector": "Monu",
+      "payment_mode": "UPI",
+      "status": "Collected",
+      "date": "2026-09-16",
+      "receipt_book_id": null,
+      "receipt_book_name": null,
+      "receipt_no": null,
+      "note": "GPay Monu. Receipt book/no baad me update.",
+      "event": "Ganpati Mandap",
+      "donor_member": null,
+      "id": "2bd991bb-5187-441f-b49a-5d05db49dded",
+      "voided": false,
+      "collected_at": "2026-09-16T10:54:38.065386+00:00",
+      "created_at": "2026-09-16T10:54:38.065377+00:00",
+      "updated_at": "2026-09-16T10:54:38.065382+00:00"
     }
   ],
   "collectors": [
@@ -1837,6 +1879,11 @@
       "id": "0a122502-e112-46a5-bbfe-5aba68aa0231",
       "name": "Ramakant",
       "created_at": "2026-09-16T09:32:54.810100+00:00"
+    },
+    {
+      "id": "4cd1087a-8051-45e6-b858-44805d77f7b1",
+      "name": "Shakti group",
+      "created_at": "2026-09-16T10:54:38.056964+00:00"
     }
   ],
   "expenses": [
