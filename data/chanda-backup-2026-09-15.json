@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "exported_at": "2026-09-17T07:18:58.987737+00:00",
+  "exported_at": "2026-09-17T07:27:48.750013+00:00",
   "chandas": [
     {
       "id": "5df7ee00-076b-4b26-9b92-dcf8d8fdc04f",
@@ -2378,6 +2378,24 @@
       "voided": false,
       "created_at": "2026-09-17T07:18:44.990723+00:00",
       "updated_at": "2026-09-17T07:18:44.990735+00:00"
+    },
+    {
+      "description": "Haar phool",
+      "vendor": null,
+      "category": "Aarti Samagri",
+      "total_bill": 30.0,
+      "amount_paid": 30.0,
+      "group_funds_used": 0.0,
+      "personal_contribution": 30.0,
+      "paid_by": "Abhishek (Sonu)",
+      "payment_mode": "Cash",
+      "date": "2026-09-17",
+      "note": "Haar/phool. Spent by Sonu ₹30 on 17 Sep.",
+      "event": "Ganpati Mandap",
+      "id": "00aee495-d418-48d8-8119-0146fae3f139",
+      "voided": false,
+      "created_at": "2026-09-17T07:27:34.681447+00:00",
+      "updated_at": "2026-09-17T07:27:34.681455+00:00"
     }
   ],
   "transfers": [
@@ -2498,14 +2516,14 @@
   "summary": {
     "chanda_promised": 164769.0,
     "chanda_received": 124222.0,
-    "expense_paid": 138364.0,
+    "expense_paid": 138394.0,
     "group_funds_used": 122664.0,
-    "personal_contribution": 15700.0,
+    "personal_contribution": 15730.0,
     "remaining_balance": 1008.0,
     "counts": {
       "chandas": 102,
       "collectors": 17,
-      "expenses": 25,
+      "expenses": 26,
       "transfers": 6,
       "reimbursements": 1,
       "receipt_books": 3,
