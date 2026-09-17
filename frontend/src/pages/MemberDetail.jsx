@@ -6,7 +6,7 @@ import { ArrowLeft, HandCoins, ArrowRightLeft, Receipt, Pencil, Gift, ChevronRig
 import { colorForEvent } from "@/lib/events";
 import MemberEditSheet from "@/components/MemberEditSheet";
 import ChandaSlipFilters from "@/components/ChandaSlipFilters";
-import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, personalChandasForMember } from "@/lib/exports";
+import { downloadMemberChandaReportPDF, downloadMemberChandaReportExcel, downloadMemberExpenseReportPDF, downloadMemberExpenseReportExcel, downloadMembersHisabPDF, downloadMemberHisabPDF, personalChandasForMember, MEMBER_SLIP_PDF_COLS } from "@/lib/exports";
 import { useChandaSlipFilters } from "@/lib/chandaFilters";
 import { goRecordHeldKharch } from "@/lib/heldSpend";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ export default function MemberDetail() {
     allChandas,
     eventFilter: slipFilters.eventFilter,
     includeDonorPromises: slipFilters.includeDonorPromises,
+    selectedCols: slipFilters.selectedSlipCols,
   };
 
   const loadDetail = () => {
@@ -207,13 +208,16 @@ export default function MemberDetail() {
 
       <div className="card-elevated p-4 space-y-2" data-testid="member-slip-filters-card">
         <div className="text-sm font-semibold text-slate-900">Personal chanda filter</div>
-        <p className="text-xs text-slate-500">Hisab / Chanda PDF aur Donations Given isi filter se. Donor promise default band.</p>
+        <p className="text-xs text-slate-500">Hisab / Chanda PDF isi filter + columns se. Event tick karo — Raghav kis event me diya woh PDF me dikhega. Donor promise band to pending book slips PDF me nahi aati.</p>
         <ChandaSlipFilters
           eventFilter={slipFilters.eventFilter}
           includeDonorPromises={slipFilters.includeDonorPromises}
           events={slipFilters.events}
           onEventChange={slipFilters.setEventFilter}
           onPromiseChange={slipFilters.setIncludeDonorPromises}
+          columnOptions={MEMBER_SLIP_PDF_COLS}
+          selectedColumns={slipFilters.selectedSlipCols}
+          onToggleColumn={slipFilters.toggleSlipCol}
         />
       </div>
 

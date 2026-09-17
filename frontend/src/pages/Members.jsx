@@ -64,7 +64,12 @@ export default function Members() {
       const collected = collectionsForMember(detail, allChandas, name);
       const expenses = detail?.expenses || [];
       const filters = loadChandaSlipFilters();
-      const slipOpts = { allChandas, eventFilter: filters.eventFilter, includeDonorPromises: filters.includeDonorPromises };
+      const slipOpts = {
+        allChandas,
+        eventFilter: filters.eventFilter,
+        includeDonorPromises: filters.includeDonorPromises,
+        selectedCols: filters.selectedSlipCols,
+      };
       if (kind === "hisab-pdf") downloadMemberHisabPDF(name, detail, slipOpts);
       else if (kind === "chanda-pdf") downloadMemberChandaReportPDF(name, collected, slipOpts);
       else if (kind === "chanda-excel") downloadMemberChandaReportExcel(name, collected, slipOpts);

@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { formatDate, formatDateTimeIST } from "@/lib/format";
 import { memberNet } from "@/lib/memberNet";
+import { MEMBER_SLIP_PDF_COLS, MEMBER_SLIP_PDF_DEFAULT_COLS, MEMBER_SLIP_PDF_COL_KEYS } from "@/lib/slipPdfCols";
 
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const dt = () => new Date().toISOString().slice(0, 10);
@@ -35,16 +36,16 @@ const pdfRupeeParser = (tone, rupeeCols) => (data) => {
 
 export const pdfInPendingParser = (amountIdx, statusIdx) => (data) => {
   if (data.section !== "body") return;
-  const status = String((data.row.raw && data.row.raw[statusIdx]) || "").toLowerCase();
+  const status = statusIdx >= 0 ? String((data.row.raw && data.row.raw[statusIdx]) || "").toLowerCase() : "";
   const pending = status === "pending";
-  if (data.column.index === amountIdx) paintRupee(data.cell, pending ? "pending" : "in");
-  if (statusIdx != null && data.column.index === statusIdx && pending) paintRupee(data.cell, "pending");
+  if (amountIdx >= 0 && data.column.index === amountIdx) paintRupee(data.cell, pending ? "pending" : "in");
+  if (statusIdx >= 0 && data.column.index === statusIdx && pending) paintRupee(data.cell, "pending");
 };
 
 const pdfAayaPendingParser = (aayaIdx, pendingIdx) => (data) => {
   if (data.section !== "body") return;
-  if (data.column.index === aayaIdx) paintRupee(data.cell, "in");
-  if (data.column.index === pendingIdx) paintRupee(data.cell, "pending");
+  if (aayaIdx >= 0 && data.column.index === aayaIdx) paintRupee(data.cell, "in");
+  if (pendingIdx >= 0 && data.column.index === pendingIdx) paintRupee(data.cell, "pending");
 };
 
 const pdfSectionTitle = (doc, title, x, y, tone = "in") => {
@@ -598,7 +599,9 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
   doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, left, 22);
   const includeDonorPromises = !!opts.includeDonorPromises;
   const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const selectedCols = opts.selectedCols;
   const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
+  const book = filterCollectorBook(chandas, eventFilter, includeDonorPromises);
   doc.setFontSize(8);
   doc.text(
     includeDonorPromises ? `${eventFilter}  ·  Personal + donor promises` : `${eventFilter}  ·  Sirf personal chanda (promise nahi)`,
@@ -657,21 +660,14 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
   };
 
   if (personal.length) {
+    const tbl = slipPdfTable(personal, selectedCols);
     captionThenTable(
       `Personal chanda (${personal.length})${includeDonorPromises ? " + donor promises" : " — sirf personal"}`,
-      ["Date", "Slip", "Receipt", "Aaya", "Pending", "Collector", "Status"],
-      personal.map((c) => [
-        formatDate(c.date),
-        c.name || "-",
-        receiptLabel(c),
-        formatRs(chandaReceivedAmt(c)),
-        formatRs(entryPendingAmt(c)),
-        c.collector || "-",
-        c.status || "-",
-      ]),
+      tbl.head,
+      tbl.body,
       "in",
       [],
-      pdfAayaPendingParser(3, 4),
+      pdfAayaPendingParser(tbl.amountIdx, tbl.pendingIdx),
     );
   } else {
     const pageH = doc.internal.pageSize.getHeight();
@@ -686,21 +682,34 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
     startY += 10;
   }
 
-  captionThenTable(
-    `Collections (${chandas.length})`,
-    ["Date", "Donor", "Receipt", "Amount", "Mode", "Status"],
-    chandas.map((c) => [
-      formatDate(c.date),
-      c.name || "-",
-      c.receipt_no != null ? `${c.receipt_book_name || ""} #${c.receipt_no}`.trim() : "-",
-      formatRs(c.status === "Collected" ? chandaReceivedAmt(c) : (c.amount || 0)),
-      c.payment_mode || "-",
-      c.status || "-",
-    ]),
-    "in",
-    [],
-    pdfInPendingParser(3, 5),
-  );
+  if (book.length) {
+    const tbl = slipPdfTable(book, selectedCols);
+    captionThenTable(
+      `Collections (${book.length})${includeDonorPromises ? "" : " — collected only"}`,
+      tbl.head,
+      tbl.body,
+      "in",
+      [],
+      pdfInPendingParser(tbl.amountIdx, tbl.statusIdx),
+    );
+  } else {
+    const pageH = doc.internal.pageSize.getHeight();
+    if (startY + 12 > pageH - 16) {
+      doc.addPage();
+      startY = 16;
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      includeDonorPromises
+        ? "Koi collection nahi is event filter pe."
+        : "Koi collected slip nahi. Donor promise tick karke pending book slips aayenge.",
+      left,
+      startY,
+    );
+    startY += 10;
+  }
   captionThenTable(
     `Transferred out (${tOut.length})`,
     ["Date", "To", "Amount", "Note"],
@@ -743,7 +752,7 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
     [2],
   );
 
-  if (!personal.length && !chandas.length && !tOut.length && !tIn.length && !expenses.length && !rOut.length && !rIn.length) {
+  if (!personal.length && !book.length && !tOut.length && !tIn.length && !expenses.length && !rOut.length && !rIn.length) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(100, 116, 139);
@@ -761,15 +770,20 @@ const collectionsForMember = (detail, allChandas, memberName) => {
 };
 
 export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
-  const rows = activeRows(chandas);
-  const collected = rows.filter((c) => c.status === "Collected").reduce((s, c) => s + (c.received_amount || c.amount || 0), 0);
-  const pending = rows.filter((c) => c.status === "Pending").reduce((s, c) => s + (c.amount || 0), 0);
-  const promised = rows.reduce((s, c) => s + (c.amount || 0), 0);
   const includeDonorPromises = !!opts.includeDonorPromises;
   const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const selectedCols = opts.selectedCols;
+  const rows = filterCollectorBook(activeRows(chandas), eventFilter, includeDonorPromises);
+  const collected = rows.reduce((s, c) => s + chandaReceivedAmt(c), 0);
+  const pendingRows = includeDonorPromises
+    ? filterCollectorBook(activeRows(chandas), eventFilter, true).filter((c) => chandaReceivedAmt(c) <= 0.01)
+    : [];
+  const pending = pendingRows.reduce((s, c) => s + (c.amount || 0), 0);
   const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
   const persRecv = personal.reduce((s, c) => s + chandaReceivedAmt(c), 0);
   const persPend = personal.reduce((s, c) => s + entryPendingAmt(c), 0);
+  const persTbl = slipPdfTable(personal, selectedCols);
+  const bookTbl = slipPdfTable(rows, selectedCols);
 
   const doc = new jsPDF();
   doc.setFont("helvetica", "bold");
@@ -793,84 +807,61 @@ export const downloadMemberChandaReportPDF = (name, chandas, opts = {}) => {
     ].forEach((line, i) => doc.text(line, 14, 35 + i * 6));
     doc.setTextColor(...PDF_TONE.pending);
     doc.setFontSize(10);
-    doc.text(`Pending (book) ${formatRs(pending)}  ·  Pending (personal) ${formatRs(persPend)}`, 14, 47);
+    doc.text(
+      includeDonorPromises
+        ? `Pending (book) ${formatRs(pending)}  ·  Pending (personal) ${formatRs(persPend)}`
+        : `Pending book slips chhupi hain (donor promise band)`,
+      14,
+      47,
+    );
     let startY = 54;
   if (personal.length) {
     pdfSectionTitle(doc, "Personal chanda", 14, startY, "in");
     autoTable(doc, {
       startY: startY + 3,
-      head: [["Date", "Slip", "Receipt", "Aaya", "Pending", "Collector", "Status"]],
-      body: personal.map((c) => [
-        formatDate(c.date),
-        c.name || "-",
-        receiptLabel(c),
-        formatRs(chandaReceivedAmt(c)),
-        formatRs(entryPendingAmt(c)),
-        c.collector || "-",
-        c.status || "-",
-      ]),
+      head: [persTbl.head],
+      body: persTbl.body,
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: pdfHeadStyles("in"),
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
-      didParseCell: pdfAayaPendingParser(3, 4),
+      didParseCell: pdfAayaPendingParser(persTbl.amountIdx, persTbl.pendingIdx),
     });
     startY = doc.lastAutoTable.finalY + 10;
   }
 
-  pdfSectionTitle(doc, "Collector book", 14, startY, "in");
+  pdfSectionTitle(doc, includeDonorPromises ? "Collector book" : "Collector book (collected only)", 14, startY, "in");
   autoTable(doc, {
     startY: startY + 3,
-    head: [["Date", "Book", "Receipt", "Donor", "Amount", "Mode", "Status", "Event"]],
-    body: rows.length ? rows.map((c) => [
-      formatDate(c.date),
-      c.receipt_book_name || "-",
-      c.receipt_no != null ? String(c.receipt_no) : "-",
-      c.name || "-",
-      formatRs(c.status === "Collected" ? chandaReceivedAmt(c) : (c.amount || 0)),
-      c.payment_mode || "-",
-      c.status || "-",
-      c.event || "-",
-    ]) : [["-", "-", "-", "No collections", "-", "-", "-", "-"]],
+    head: [bookTbl.head],
+    body: rows.length ? bookTbl.body : [bookTbl.cols.map((c, i) => (i === 0 ? "No collections" : "-"))],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: pdfHeadStyles("in"),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: 14, right: 14 },
-    didParseCell: pdfInPendingParser(4, 6),
+    didParseCell: pdfInPendingParser(bookTbl.amountIdx, bookTbl.statusIdx),
   });
   doc.save(`chanda-${fileSafeName(name)}-${dt()}.pdf`);
 };
 
 export const downloadMemberChandaReportExcel = (name, chandas, opts = {}) => {
-  const rows = activeRows(chandas);
   const includeDonorPromises = !!opts.includeDonorPromises;
   const eventFilter = opts.eventFilter || "Ganpati Mandap";
+  const cols = resolveSlipPdfCols(opts.selectedCols);
+  const rows = filterCollectorBook(activeRows(chandas), eventFilter, includeDonorPromises);
   const personal = personalChandasForMember(opts.allChandas || [], name, eventFilter, includeDonorPromises);
   const wb = XLSX.utils.book_new();
-  const personalData = personal.length ? personal.map((c) => ({
-    Date: c.date,
-    Slip: c.name || "",
-    Receipt: receiptLabel(c),
-    Aaya: chandaReceivedAmt(c),
-    Pending: entryPendingAmt(c),
-    Collector: c.collector || "",
-    Status: c.status || "",
-    Event: c.event || "",
-  })) : [{ Slip: "Koi personal chanda nahi is filter pe" }];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personalData), "Personal chanda");
-  const data = rows.length ? rows.map((c) => ({
-    Date: c.date,
-    Book: c.receipt_book_name || "",
-    "Receipt No": c.receipt_no ?? "",
-    Donor: c.name || "",
-    Amount: Number(c.status === "Collected" ? (c.received_amount || c.amount) : c.amount || 0),
-    Promised: Number(c.amount || 0),
-    Received: Number(c.received_amount || 0),
-    Mode: c.payment_mode || "",
-    Status: c.status || "",
-    Event: c.event || "",
-  })) : [{ Date: "", Donor: "No collections" }];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Collector book");
+  const toSheet = (list, emptyMsg) => (
+    list.length
+      ? list.map((c) => {
+        const row = {};
+        cols.forEach((col) => { row[col.label] = slipExcelCell(c, col.key); });
+        return row;
+      })
+      : [{ [cols[0].label]: emptyMsg }]
+  );
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toSheet(personal, "Koi personal chanda nahi is filter pe")), "Personal chanda");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toSheet(rows, "No collections")), "Collector book");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   saveAs(new Blob([buf], { type: "application/octet-stream" }), `chanda-${fileSafeName(name)}-${dt()}.xlsx`);
 };
@@ -957,6 +948,8 @@ export const MEMBER_CHANDA_LIST_COLS = [
 
 export const MEMBER_CHANDA_LIST_DEFAULT_COLS = ["received", "pending", "status"];
 
+export { MEMBER_SLIP_PDF_COLS, MEMBER_SLIP_PDF_DEFAULT_COLS, MEMBER_SLIP_PDF_COL_KEYS } from "@/lib/slipPdfCols";
+
 const normName = (s) => String(s || "").toLowerCase().trim();
 
 const chandaReceivedAmt = (c) => Number(c.received_amount != null ? c.received_amount : (c.status === "Collected" ? c.amount : 0)) || 0;
@@ -999,6 +992,71 @@ export const personalChandasForMember = (chandas, memberName, eventFilter, inclu
     }
     return true;
   });
+};
+
+/** Collector-book slips for a member. Pending/unpaid hidden unless donor promise is on. */
+export const filterCollectorBook = (chandas, eventFilter, includeDonorPromises = false) => {
+  return (chandas || []).filter((c) => {
+    if (c.voided) return false;
+    if (eventFilter && eventFilter !== "All" && (c.event || "Ganpati Mandap") !== eventFilter) return false;
+    if (!includeDonorPromises && chandaReceivedAmt(c) <= 0.01) return false;
+    return true;
+  });
+};
+
+export const resolveSlipPdfCols = (selectedCols) => {
+  const set = new Set(
+    (selectedCols || []).filter((k) => MEMBER_SLIP_PDF_COL_KEYS.includes(k)),
+  );
+  const cols = MEMBER_SLIP_PDF_COLS.filter((c) => set.has(c.key));
+  if (cols.length) return cols;
+  return MEMBER_SLIP_PDF_COLS.filter((c) => MEMBER_SLIP_PDF_DEFAULT_COLS.includes(c.key));
+};
+
+const slipPdfCell = (c, key) => {
+  if (key === "date") return formatDate(c.date);
+  if (key === "name") return c.name || "-";
+  if (key === "receipt") return receiptLabel(c);
+  if (key === "book") return c.receipt_book_name || "-";
+  if (key === "amount") {
+    const aaya = chandaReceivedAmt(c);
+    return formatRs(aaya > 0.01 ? aaya : (c.amount || 0));
+  }
+  if (key === "pending") return formatRs(entryPendingAmt(c));
+  if (key === "event") return c.event || "-";
+  if (key === "mode") return c.payment_mode || "-";
+  if (key === "status") return c.status || "-";
+  if (key === "collector") return c.collector || "-";
+  return "-";
+};
+
+const slipExcelCell = (c, key) => {
+  if (key === "date") return c.date || "";
+  if (key === "name") return c.name || "";
+  if (key === "receipt") return receiptLabel(c);
+  if (key === "book") return c.receipt_book_name || "";
+  if (key === "amount") {
+    const aaya = chandaReceivedAmt(c);
+    return Number(aaya > 0.01 ? aaya : (c.amount || 0));
+  }
+  if (key === "pending") return entryPendingAmt(c);
+  if (key === "event") return c.event || "";
+  if (key === "mode") return c.payment_mode || "";
+  if (key === "status") return c.status || "";
+  if (key === "collector") return c.collector || "";
+  return "";
+};
+
+const slipPdfTable = (rows, selectedCols) => {
+  const cols = resolveSlipPdfCols(selectedCols);
+  return {
+    cols,
+    head: cols.map((c) => c.label),
+    body: rows.map((r) => cols.map((c) => slipPdfCell(r, c.key))),
+    amountIdx: cols.findIndex((c) => c.key === "amount"),
+    pendingIdx: cols.findIndex((c) => c.key === "pending"),
+    statusIdx: cols.findIndex((c) => c.key === "status"),
+  };
 };
 
 const personalChandaStatus = (promised, received, pending) => {

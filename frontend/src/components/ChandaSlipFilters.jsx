@@ -6,6 +6,9 @@ export default function ChandaSlipFilters({
   events = [],
   onEventChange,
   onPromiseChange,
+  columnOptions,
+  selectedColumns,
+  onToggleColumn,
 }) {
   return (
     <div className="space-y-2" data-testid="chanda-slip-filters">
@@ -46,9 +49,28 @@ export default function ChandaSlipFilters({
         />
         <span className="text-sm font-medium text-slate-700">
           Donor promise
-          <span className="block text-[10px] font-normal text-slate-500">Book ki pending promise — default band</span>
+          <span className="block text-[10px] font-normal text-slate-500">Book ki pending promise — default band. PDF me bhi nahi aati.</span>
         </span>
       </label>
+      {Array.isArray(columnOptions) && columnOptions.length > 0 && onToggleColumn && (
+        <div>
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">PDF columns</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" data-testid="member-slip-pdf-cols">
+            {columnOptions.map((c) => (
+              <label key={c.key} className="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={(selectedColumns || []).includes(c.key)}
+                  onChange={() => onToggleColumn(c.key)}
+                  data-testid={`member-slip-col-${c.key}`}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium text-slate-700">{c.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
