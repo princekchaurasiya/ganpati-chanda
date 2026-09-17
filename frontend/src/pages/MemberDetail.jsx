@@ -11,12 +11,7 @@ import { useChandaSlipFilters } from "@/lib/chandaFilters";
 import { goRecordHeldKharch } from "@/lib/heldSpend";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-
-const memberNet = (m) => {
-  if (!m) return 0;
-  if (m.net_position != null) return Number(m.net_position);
-  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
-};
+import { memberNet } from "@/lib/memberNet";
 
 export default function MemberDetail() {
   const { name } = useParams();
@@ -297,6 +292,7 @@ export default function MemberDetail() {
           {s.transferred_in > 0 && <> +{formatINR(s.transferred_in)} in</>}
           {s.transferred_out > 0 && <> −{formatINR(s.transferred_out)} out</>}
           {s.paid_to_expenses > 0 && <> −{formatINR(s.paid_to_expenses)} paid</>}
+          {(s.reimbursement_received || 0) > 0.01 && <> +{formatINR(s.reimbursement_received)} reimb</>}
           {Math.abs((s.current_held || 0) - memberNet(s)) > 0.01 && <> · group cash (Cash+GPay) {formatINR(s.current_held)}</>}
         </div>
       </button>

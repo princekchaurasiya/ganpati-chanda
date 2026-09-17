@@ -901,8 +901,12 @@ async def build_member_summaries(year: Optional[str] = None):
 
         current_held = total_received - transferred_out + transferred_in - group_funds_paid - reimbursement_paid_out
         reimbursement_due = personal_contribution - reimbursement_received
-        # Pocket hisab: collected − transfers out + transfers in − sab kharch (group + personal)
-        net_position = total_received - transferred_out + transferred_in - (group_funds_paid + personal_contribution)
+        # Pocket hisab: collected ± transfers − sab kharch + jo reimburse wapas mila
+        net_position = (
+            total_received - transferred_out + transferred_in
+            - (group_funds_paid + personal_contribution)
+            + reimbursement_received
+        )
 
         result.append({
             "name": name,

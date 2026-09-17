@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { colorForEvent } from "@/lib/events";
 import { downloadMembersHisabPDF } from "@/lib/exports";
 import { goRecordHeldKharch } from "@/lib/heldSpend";
+import { memberNet } from "@/lib/memberNet";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -19,12 +20,6 @@ const shortReceipt = (e) => {
   if (!e.receipt_no) return null;
   const p = (e.receipt_book_name || "").replace(/[^A-Z0-9]/gi, "").slice(0, 2).toUpperCase() || "B";
   return `${p}/${String(e.receipt_no).padStart(3, "0")}`;
-};
-
-const memberNet = (m) => {
-  if (!m) return 0;
-  if (m.net_position != null) return Number(m.net_position);
-  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
 };
 
 export default function Dashboard() {

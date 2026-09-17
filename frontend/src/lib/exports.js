@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { formatDate, formatDateTimeIST } from "@/lib/format";
+import { memberNet } from "@/lib/memberNet";
 
 const formatRs = (n) => "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const dt = () => new Date().toISOString().slice(0, 10);
@@ -369,11 +370,7 @@ export const downloadMembersExcel = (members, ledger) => {
   saveAs(new Blob([buf], { type: "application/octet-stream" }), `members-ledger-${dt()}.xlsx`);
 };
 
-const netOfMember = (m) => {
-  if (!m) return 0;
-  if (m.net_position != null) return Number(m.net_position);
-  return Number(m.total_received || 0) - Number(m.transferred_out || 0) + Number(m.transferred_in || 0) - Number(m.paid_to_expenses || 0);
-};
+const netOfMember = (m) => memberNet(m);
 
 const memberHasActivity = (m, net) =>
   Math.abs(net) > 0.01

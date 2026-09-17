@@ -213,6 +213,7 @@ def test_acceptance_scenario(s):
     shri = _member(ms, "Shrikant")
     assert monu["reimbursement_due"] == 0
     assert monu["reimbursement_received"] == 15000
+    assert monu["net_position"] == 0
     assert shri["current_held"] == 5000
     d = s.get(f"{API}/dashboard").json()
     assert d["chanda"]["total_received"] == 47000  # 2000+10000+15000+20000
