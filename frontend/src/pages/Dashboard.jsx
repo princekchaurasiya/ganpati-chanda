@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { colorForEvent } from "@/lib/events";
 import { downloadMembersHisabPDF } from "@/lib/exports";
 import { goRecordHeldKharch } from "@/lib/heldSpend";
-import { memberNet } from "@/lib/memberNet";
+import { memberNet, memberHasTrf } from "@/lib/memberNet";
 
 const modeColors = {
   Cash: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
@@ -201,7 +201,9 @@ export default function Dashboard() {
                     <td className="py-2 px-2 text-right font-num text-slate-600">
                       {m.transferred_out > 0 && <span className="text-orange-700">-{formatINR(m.transferred_out)}</span>}
                       {m.transferred_in > 0 && <span className="text-blue-700"> +{formatINR(m.transferred_in)}</span>}
-                      {(m.transferred_out === 0 && m.transferred_in === 0) && <span className="text-slate-400">—</span>}
+                      {(m.reimbursement_paid_out || 0) > 0.01 && <span className="text-orange-700"> −{formatINR(m.reimbursement_paid_out)}</span>}
+                      {(m.reimbursement_received || 0) > 0.01 && <span className="text-emerald-700"> +{formatINR(m.reimbursement_received)}</span>}
+                      {!memberHasTrf(m) && <span className="text-slate-400">—</span>}
                     </td>
                     <td className="py-2 px-2 text-right font-num text-red-700">{m.paid_to_expenses > 0.01 ? formatINR(-m.paid_to_expenses) : "—"}</td>
                     <td className={`py-2 pl-2 text-right font-num font-bold ${memberNet(m) < -0.01 ? "text-red-700" : memberNet(m) < 0.01 ? "text-slate-500" : "text-emerald-700"}`}>
@@ -524,8 +526,8 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
                 onClick={() => switchKind(`member-held:${name}`)} />
               <SumCell testid={`sumcell-paid-${name}`} label="Paid to Expenses" value={formatINR(mem.paid_to_expenses)} tone="red"
                 onClick={mem.paid_to_expenses > 0.01 ? () => switchKind(`member-paid:${name}`) : null} />
-              <SumCell testid={`sumcell-transfers-${name}`} label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 ? "—" : ""}`} tone="slate"
-                onClick={(mem.transferred_out > 0.01 || mem.transferred_in > 0.01) ? () => switchKind(`member-transfers:${name}`) : null} />
+              <SumCell testid={`sumcell-transfers-${name}`} label="Transfers" value={`${mem.transferred_out > 0 ? "-" + formatINR(mem.transferred_out) : ""}${mem.transferred_out > 0 && mem.transferred_in > 0 ? " / " : ""}${mem.transferred_in > 0 ? "+" + formatINR(mem.transferred_in) : ""}${(mem.reimbursement_paid_out || 0) > 0.01 ? " −" + formatINR(mem.reimbursement_paid_out) + " reimb" : ""}${(mem.reimbursement_received || 0) > 0.01 ? " +" + formatINR(mem.reimbursement_received) + " reimb" : ""}${mem.transferred_in === 0 && mem.transferred_out === 0 && (mem.reimbursement_paid_out || 0) < 0.01 && (mem.reimbursement_received || 0) < 0.01 ? "—" : ""}`} tone="slate"
+                onClick={(mem.transferred_out > 0.01 || mem.transferred_in > 0.01 || (mem.reimbursement_paid_out || 0) > 0.01 || (mem.reimbursement_received || 0) > 0.01) ? () => switchKind(`member-transfers:${name}`) : null} />
               {(mem.personal_contribution > 0.01 || mem.reimbursement_due > 0.01) && (
                 <>
                   <SumCell testid={`sumcell-personal-${name}`} label="Personal Contrib" value={formatINR(mem.personal_contribution)} tone="amber"
@@ -935,8 +937,12 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
     const activeTrf = (transfers || []).filter((t) => !t.voided);
     const outs = activeTrf.filter((t) => t.from_member === mname);
     const ins = activeTrf.filter((t) => t.to_member === mname);
+    const reOut = activeReimb.filter((r) => r.paid_by === mname);
+    const reIn = activeReimb.filter((r) => r.to_member === mname);
     const outTotal = outs.reduce((s, t) => s + t.amount, 0);
     const inTotal = ins.reduce((s, t) => s + t.amount, 0);
+    const reOutTotal = reOut.reduce((s, r) => s + r.amount, 0);
+    const reInTotal = reIn.reduce((s, r) => s + r.amount, 0);
     conf = {
       title: `${mname} — Transfers`,
       body: () => (
@@ -944,6 +950,8 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
           <div className="mx-2 my-2 rounded-xl bg-slate-50 p-3 grid grid-cols-2 gap-2 text-xs" data-testid={`transfers-summary-${mname}`}>
             <SumCell label="Sent Out" value={`-${formatINR(outTotal)}`} tone="red" />
             <SumCell label="Received" value={`+${formatINR(inTotal)}`} tone="emerald" />
+            {reOutTotal > 0.01 && <SumCell label="Reimb Paid" value={`-${formatINR(reOutTotal)}`} tone="orange" />}
+            {reInTotal > 0.01 && <SumCell label="Reimb Received" value={`+${formatINR(reInTotal)}`} tone="emerald" />}
           </div>
           {outs.length > 0 && (
             <>
@@ -957,7 +965,35 @@ function StatModal({ kind, onClose, switchKind, onBack, chandas, expenses, reimb
               <TransferListRows entries={ins} me={mname} direction="in" nav={nav} onClose={onClose} />
             </>
           )}
-          {outs.length === 0 && ins.length === 0 && (
+          {reOut.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-2">Reimbursement paid · {reOut.length}</div>
+              {reOut.map((r) => (
+                <div key={r.id} className="px-3 py-2 flex items-center gap-2 border-b border-slate-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-slate-900">to {r.to_member}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{r.date}{r.note ? ` · ${r.note}` : ""}</div>
+                  </div>
+                  <div className="font-num font-bold text-sm text-orange-700">−{formatINR(r.amount)}</div>
+                </div>
+              ))}
+            </>
+          )}
+          {reIn.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide border-t border-slate-100 mt-2">Reimbursement received · {reIn.length}</div>
+              {reIn.map((r) => (
+                <div key={r.id} className="px-3 py-2 flex items-center gap-2 border-b border-slate-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-slate-900">from {r.paid_by}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{r.date}{r.note ? ` · ${r.note}` : ""}</div>
+                  </div>
+                  <div className="font-num font-bold text-sm text-emerald-700">+{formatINR(r.amount)}</div>
+                </div>
+              ))}
+            </>
+          )}
+          {outs.length === 0 && ins.length === 0 && reOut.length === 0 && reIn.length === 0 && (
             <div className="p-6 text-center text-slate-500 text-sm">No transfers.</div>
           )}
         </div>

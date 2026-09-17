@@ -215,6 +215,8 @@ def test_acceptance_scenario(s):
     assert monu["reimbursement_received"] == 15000
     assert monu["net_position"] == 0
     assert shri["current_held"] == 5000
+    assert shri["reimbursement_paid_out"] == 15000
+    assert shri["net_position"] == 5000  # pocket drops by reimburse out, not only held
     d = s.get(f"{API}/dashboard").json()
     assert d["chanda"]["total_received"] == 47000  # 2000+10000+15000+20000
     assert d["reimbursements"]["total_reimbursed"] == 15000

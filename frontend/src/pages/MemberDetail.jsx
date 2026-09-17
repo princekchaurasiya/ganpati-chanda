@@ -292,7 +292,8 @@ export default function MemberDetail() {
           {s.transferred_in > 0 && <> +{formatINR(s.transferred_in)} in</>}
           {s.transferred_out > 0 && <> −{formatINR(s.transferred_out)} out</>}
           {s.paid_to_expenses > 0 && <> −{formatINR(s.paid_to_expenses)} paid</>}
-          {(s.reimbursement_received || 0) > 0.01 && <> +{formatINR(s.reimbursement_received)} reimb</>}
+          {(s.reimbursement_received || 0) > 0.01 && <> +{formatINR(s.reimbursement_received)} reimb in</>}
+          {(s.reimbursement_paid_out || 0) > 0.01 && <> −{formatINR(s.reimbursement_paid_out)} reimb out</>}
           {Math.abs((s.current_held || 0) - memberNet(s)) > 0.01 && <> · group cash (Cash+GPay) {formatINR(s.current_held)}</>}
         </div>
       </button>
@@ -308,6 +309,7 @@ export default function MemberDetail() {
         <MiniCard testid="mini-group-paid" label="Group Funds Paid" value={formatINR(s.group_funds_paid || 0)} color="red" onClick={(s.group_funds_paid || 0) > 0 ? () => setModalKind("group_paid") : null} />
         <MiniCard testid="mini-personal" label="Personal Contribution" value={formatINR(s.personal_contribution || 0)} sub={s.reimbursement_due > 0.01 ? `${formatINR(s.reimbursement_due)} due` : "Fully reimbursed"} color="amber" onClick={(s.personal_contribution || 0) > 0 ? () => setModalKind("personal") : null} />
         <MiniCard testid="mini-reimb-in" label="Reimbursement Received" value={formatINR(s.reimbursement_received || 0)} color="emerald" onClick={(s.reimbursement_received || 0) > 0 ? () => setModalKind("reimb_in") : null} />
+        <MiniCard testid="mini-reimb-out" label="Reimbursement Paid" value={formatINR(s.reimbursement_paid_out || 0)} color="orange" onClick={(s.reimbursement_paid_out || 0) > 0 ? () => setModalKind("reimb_out") : null} />
         <MiniCard testid="mini-held" label="Group cash (Cash+GPay)" value={formatINR(s.current_held)} color={s.current_held < 0 ? "red" : "emerald"} onClick={() => setModalKind("held")} />
       </div>
       )}
@@ -588,6 +590,7 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
   const groupPaidExp = (data.expenses || []).filter((e) => !e.voided && (e.group_funds_used || 0) > 0);
   const personalExp = (data.expenses || []).filter((e) => !e.voided && (e.personal_contribution || 0) > 0);
   const reimbIn = (data.reimbursements_in || []).filter((r) => !r.voided);
+  const reimbOut = (data.reimbursements_out || []).filter((r) => !r.voided);
 
   let title = "", subtitle = "", body = null;
 
@@ -626,6 +629,23 @@ function MemberModal({ kind, name, data, donations, onClose, nav }) {
     title = "Personal Contribution";
     subtitle = `${personalExp.length} expenses · ${formatINR(personalExp.reduce((s, e) => s + (e.personal_contribution || 0), 0))}${s.reimbursement_due > 0.01 ? ` · ${formatINR(s.reimbursement_due)} due` : ""}`;
     body = <ExpenseList entries={personalExp} field="personal_contribution" nav={nav} onClose={onClose} returnTo={returnTo} />;
+  } else if (kind === "reimb_out") {
+    title = "Reimbursements Paid";
+    subtitle = `${reimbOut.length} · ${formatINR(reimbOut.reduce((s, r) => s + r.amount, 0))}`;
+    body = (
+      <div className="divide-y divide-slate-100">
+        {reimbOut.length === 0 ? <div className="p-6 text-center text-slate-500 text-sm">None.</div> :
+          reimbOut.map((r) => (
+            <div key={r.id} className="px-3 py-2 flex items-center gap-2" data-testid={`modal-reimb-out-${r.id}`}>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-slate-900">to {r.to_member}</div>
+                <div className="text-[10px] text-slate-500 truncate">{formatDate(r.date)} · {r.payment_mode}{r.note ? ` · ${r.note}` : ""}</div>
+              </div>
+              <div className="font-num font-bold text-sm text-orange-700">−{formatINR(r.amount)}</div>
+            </div>
+          ))}
+      </div>
+    );
   } else if (kind === "reimb_in") {
     title = "Reimbursements Received";
     subtitle = `${reimbIn.length} · ${formatINR(reimbIn.reduce((s, r) => s + r.amount, 0))}`;

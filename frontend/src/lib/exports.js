@@ -497,6 +497,8 @@ export const downloadMembersHisabPDF = (members) => {
     bits.push(`${formatRs(r.m.total_received || 0)} received`);
     if (Number(r.m.transferred_in || 0) > 0.01) bits.push(`+${formatRs(r.m.transferred_in)} in`);
     if (Number(r.m.transferred_out || 0) > 0.01) bits.push(`-${formatRs(r.m.transferred_out)} out`);
+    if (Number(r.m.reimbursement_received || 0) > 0.01) bits.push(`+${formatRs(r.m.reimbursement_received)} reimb`);
+    if (Number(r.m.reimbursement_paid_out || 0) > 0.01) bits.push(`-${formatRs(r.m.reimbursement_paid_out)} reimb`);
     if (Number(r.m.paid_to_expenses || 0) > 0.01) bits.push(`-${formatRs(r.m.paid_to_expenses)} paid`);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -623,6 +625,8 @@ export const downloadMemberHisabPDF = (name, detail, opts = {}) => {
     `${formatRs(s.total_received || 0)} received`,
     ...(Number(s.transferred_in || 0) > 0.01 ? [`+${formatRs(s.transferred_in)} in`] : []),
     ...(Number(s.transferred_out || 0) > 0.01 ? [`-${formatRs(s.transferred_out)} out`] : []),
+    ...(Number(s.reimbursement_received || 0) > 0.01 ? [`+${formatRs(s.reimbursement_received)} reimb`] : []),
+    ...(Number(s.reimbursement_paid_out || 0) > 0.01 ? [`-${formatRs(s.reimbursement_paid_out)} reimb`] : []),
     ...(Number(s.paid_to_expenses || 0) > 0.01 ? [`-${formatRs(s.paid_to_expenses)} paid`] : []),
   ];
   doc.text(doc.splitTextToSize(bits.join("  ·  "), width - 12)[0], left + 6, 68);
